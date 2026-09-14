@@ -36,25 +36,58 @@ export class HandTracker {
     this.video = videoEl;
     this.onGesture = onGesture;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 240 },
-      audio: false,
-    });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Camera API not available in this browser context (requires localhost or HTTPS).");
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false,
+      });
+    } catch {
+      // Fallback for cameras with strict or unmatching constraints on Windows
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+    }
+
     videoEl.srcObject = stream;
-    await videoEl.play();
+    try {
+      await videoEl.play();
+    } catch (err) {
+      console.warn("Video play interrupted or delayed:", err);
+    }
 
     const vision = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
     );
-    this.landmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numHands: 2,
-    });
+
+    const modelAssetPath =
+      "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+
+    try {
+      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath,
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+      });
+    } catch (gpuErr) {
+      console.warn("GPU delegate unavailable or failed on this Windows graphics setup, falling back to CPU:", gpuErr);
+      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath,
+          delegate: "CPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+      });
+    }
 
     this.running = true;
     this.loop();
@@ -63,8 +96,13 @@ export class HandTracker {
   private loop = () => {
     if (!this.running || !this.landmarker || !this.video) return;
     if (this.video.readyState >= 2) {
-      const result = this.landmarker.detectForVideo(this.video, performance.now());
-      this.processResult(result);
+      try {
+        const result = this.landmarker.detectForVideo(this.video, performance.now());
+        this.processResult(result);
+      } catch (frameErr) {
+        // Prevent single transient frame error from crashing entire loop
+        console.warn("Hand tracking frame processing issue:", frameErr);
+      }
     }
     this.rafId = requestAnimationFrame(this.loop);
   };

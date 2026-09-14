@@ -4,6 +4,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ChibiAvatar, type ChibiTheme, type ChibiCustomization, CHIBI_THEMES } from "./chibiAvatar";
+
+export { ChibiAvatar, CHIBI_THEMES, type ChibiTheme, type ChibiCustomization };
 
 /**
  * Orb states. Drives the avatar particle system's assembly progress and a
@@ -55,86 +58,100 @@ interface StateVisualParams {
   ringVisible: boolean;
   toolRingVisible: boolean;
   glitch: boolean;
+  avatarCool: number;
+  avatarWarm: number;
 }
 
 const STATE_PARAMS: Record<OrbState, StateVisualParams> = {
   IDLE: {
-    coreColor: 0x2ea6ff,
-    coreEmissive: 0x0c3a5c,
+    coreColor: 0x00f0ff,
+    coreEmissive: 0x003355,
     coreBaseScale: 1,
     corePulse: 0.03,
     shellSpeed: 0.15,
     scanSpeed: 0.2,
     spriteSpeed: 0.15,
-    bloomStrength: 0.7,
+    bloomStrength: 0.85,
     ringVisible: false,
     toolRingVisible: false,
     glitch: false,
+    avatarCool: 0x5ce1e6,
+    avatarWarm: 0xff3b30,
   },
   LISTENING: {
-    coreColor: 0x2ea6ff,
-    coreEmissive: 0x1c5a8c,
+    coreColor: 0x00f0ff,
+    coreEmissive: 0x0066aa,
     coreBaseScale: 1.05,
-    corePulse: 0.08,
-    shellSpeed: 0.35,
-    scanSpeed: 0.5,
-    spriteSpeed: 0.25,
-    bloomStrength: 0.9,
+    corePulse: 0.1,
+    shellSpeed: 0.4,
+    scanSpeed: 0.6,
+    spriteSpeed: 0.35,
+    bloomStrength: 1.15,
     ringVisible: true,
     toolRingVisible: false,
     glitch: false,
+    avatarCool: 0x38bdf8,
+    avatarWarm: 0x00f0ff,
   },
   THINKING: {
     coreColor: 0xb066ff,
-    coreEmissive: 0x3a1c6c,
+    coreEmissive: 0x4a1c7c,
     coreBaseScale: 1.0,
-    corePulse: 0.05,
-    shellSpeed: 0.6,
-    scanSpeed: 0.8,
-    spriteSpeed: 0.7,
-    bloomStrength: 0.8,
+    corePulse: 0.06,
+    shellSpeed: 0.7,
+    scanSpeed: 0.9,
+    spriteSpeed: 0.8,
+    bloomStrength: 1.0,
     ringVisible: false,
     toolRingVisible: false,
     glitch: false,
+    avatarCool: 0xa855f7,
+    avatarWarm: 0xec4899,
   },
   SPEAKING: {
-    coreColor: 0x4fffb0,
-    coreEmissive: 0x1c6c4a,
-    coreBaseScale: 1.08,
-    corePulse: 0.12,
-    shellSpeed: 0.4,
-    scanSpeed: 0.4,
-    spriteSpeed: 0.3,
-    bloomStrength: 1.5,
+    coreColor: 0x00ffaa,
+    coreEmissive: 0x006644,
+    coreBaseScale: 1.1,
+    corePulse: 0.15,
+    shellSpeed: 0.45,
+    scanSpeed: 0.5,
+    spriteSpeed: 0.35,
+    bloomStrength: 1.45,
     ringVisible: true,
     toolRingVisible: false,
     glitch: false,
+    avatarCool: 0x10b981,
+    avatarWarm: 0x06b6d4,
   },
   TOOL_EXECUTION: {
-    coreColor: 0xffc24f,
-    coreEmissive: 0x6c4a1c,
-    coreBaseScale: 1.03,
-    corePulse: 0.06,
-    shellSpeed: 0.25,
-    scanSpeed: 0.3,
-    spriteSpeed: 0.2,
-    bloomStrength: 0.95,
+    coreColor: 0xffb800,
+    coreEmissive: 0x7c4a00,
+    coreBaseScale: 1.04,
+    corePulse: 0.07,
+    shellSpeed: 0.3,
+    scanSpeed: 0.35,
+    spriteSpeed: 0.25,
+    bloomStrength: 1.2,
     ringVisible: false,
     toolRingVisible: true,
     glitch: false,
+    avatarCool: 0xf59e0b,
+    avatarWarm: 0xef4444,
   },
   ERROR: {
-    coreColor: 0xff3b3b,
-    coreEmissive: 0x6c1c1c,
+    coreColor: 0xff2a2a,
+    coreEmissive: 0x880000,
     coreBaseScale: 1.0,
-    corePulse: 0.15,
-    shellSpeed: 0.15,
-    scanSpeed: 0.2,
-    spriteSpeed: 0.15,
-    bloomStrength: 1.1,
+    corePulse: 0.18,
+    shellSpeed: 0.2,
+    scanSpeed: 0.3,
+    spriteSpeed: 0.2,
+    bloomStrength: 1.35,
     ringVisible: false,
     toolRingVisible: false,
     glitch: true,
+    avatarCool: 0xef4444,
+    avatarWarm: 0xffffff,
   },
 };
 
@@ -289,24 +306,28 @@ const AVATAR_VERTEX_SHADER = /* glsl */ `
   uniform float uProgress;
   uniform float uTime;
   uniform float uPixelRatio;
+  uniform float uAmplitude;
   attribute vec3 aStart;
   attribute vec3 aTarget;
   attribute float aSeed;
   attribute float aWarmth;
   varying float vWarmth;
   varying float vEased;
+  varying vec3 vWorldPos;
 
   void main() {
-    // Per-particle stagger so convergence streams in rather than snapping,
-    // matching the reference video's flowing assembly.
     float local = clamp((uProgress - aSeed * 0.35) / max(0.0001, 1.0 - aSeed * 0.35), 0.0, 1.0);
     float eased = local * local * (3.0 - 2.0 * local); // smoothstep
 
     vec3 pos = mix(aStart, aTarget, eased);
 
-    // Turbulent wobble that fades out as the particle settles — cheap
-    // sine-based motion instead of a full curl-noise field, kept light so
-    // frame cost stays flat regardless of particle count (GPU-side only).
+    // Audio-reactive resonance wave when speech/listening amplitude > 0
+    if (eased > 0.5 && uAmplitude > 0.01) {
+      vec3 norm = normalize(pos);
+      pos += norm * (sin(pos.y * 10.0 + uTime * 8.0) * uAmplitude * 0.06);
+    }
+
+    // Turbulent wobble that fades out as the particle settles
     float wobbleAmt = (1.0 - eased) * 0.5;
     pos.x += sin(uTime * 1.7 + aSeed * 62.0) * wobbleAmt;
     pos.y += cos(uTime * 1.3 + aSeed * 41.0) * wobbleAmt * 0.8;
@@ -314,18 +335,13 @@ const AVATAR_VERTEX_SHADER = /* glsl */ `
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
-    // Clamp both the depth divisor and the final size: an unclamped
-    // negative/huge gl_PointSize (from a particle rotating near/behind the
-    // camera plane, where -mvPosition.z approaches 0 or goes negative) is
-    // undefined behavior for point sprites in WebGL and was observed to
-    // corrupt the whole frame's rendering, not just the particles —
-    // confirmed live by disabling this system and watching the rest of the
-    // scene render fine again.
+
     float safeDist = max(0.5, -mvPosition.z);
-    gl_PointSize = clamp((0.6 + eased * 0.7) * uPixelRatio * (220.0 / safeDist), 1.0, 16.0);
+    gl_PointSize = clamp((0.65 + eased * 0.75 + uAmplitude * 0.3) * uPixelRatio * (230.0 / safeDist), 1.0, 18.0);
 
     vWarmth = aWarmth;
     vEased = eased;
+    vWorldPos = pos;
   }
 `;
 
@@ -333,22 +349,25 @@ const AVATAR_FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uColorCool;
   uniform vec3 uColorWarm;
   uniform float uOpacity;
+  uniform float uTime;
+  uniform float uAmplitude;
   varying float vWarmth;
   varying float vEased;
+  varying vec3 vWorldPos;
 
   void main() {
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
     if (d > 0.5) discard;
-    float alpha = smoothstep(0.5, 0.2, d);
+    float alpha = smoothstep(0.5, 0.15, d);
     vec3 color = mix(uColorCool, uColorWarm, vWarmth);
-    // Bloom amplifies dense, bright clusters fast — confirmed live that
-    // higher brightness/alpha here blew the assembled head out to solid
-    // white, losing the silhouette and the cool/warm gradient entirely.
-    // Kept deliberately conservative so the shape stays readable as
-    // individual glowing points, not a blob.
-    float brightness = 0.35 + vEased * 0.15;
-    gl_FragColor = vec4(color * brightness, alpha * uOpacity * (0.02 + vEased * 0.16));
+
+    // Cyber scanline modulation and holographic energy shimmer
+    float scanline = 0.88 + 0.12 * sin(vWorldPos.y * 22.0 + uTime * 4.0);
+    float shimmer = 0.92 + 0.08 * sin(uTime * 6.5 + vWarmth * 6.28);
+    float brightness = (0.42 + vEased * 0.22 + uAmplitude * 0.35) * scanline * shimmer;
+    
+    gl_FragColor = vec4(color * brightness, alpha * uOpacity * (0.03 + vEased * 0.2 + uAmplitude * 0.1));
   }
 `;
 
@@ -407,6 +426,7 @@ export class OrbScene {
   private memoryGraphTargetOpacity = 0;
   private memoryGraphMaterials: { material: THREE.Material; targetOpacity: number }[] = [];
 
+  public chibiAvatar!: ChibiAvatar;
   private avatarGroup!: THREE.Group;
   private avatarParticles!: THREE.Points;
   private avatarMaterial!: THREE.ShaderMaterial;
@@ -430,7 +450,11 @@ export class OrbScene {
   private toolPulseUntil = 0;
   private toolPulseColor = 0xffc24f;
 
-  private clock = new THREE.Clock();
+  private gridFloor!: THREE.Mesh;
+  private hudRing!: THREE.Mesh;
+
+  private lastTime = 0;
+  private elapsedTime = 0;
   private rafId: number | null = null;
 
   // Rolling FPS readout (updated once/sec) for the debug panel — measuring
@@ -466,6 +490,14 @@ export class OrbScene {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+    this.canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    });
+
     this.buildScene();
     this.buildComposer();
   }
@@ -473,18 +505,25 @@ export class OrbScene {
   private buildScene() {
     this.scene.fog = new THREE.FogExp2(0x05070c, 0.045);
 
-    const ambient = new THREE.AmbientLight(0x224466, 0.6);
+    const ambient = new THREE.AmbientLight(0x334466, 0.7);
     this.scene.add(ambient);
-    const point = new THREE.PointLight(0x66ccff, 2.2, 20);
-    point.position.set(3, 3, 5);
-    this.scene.add(point);
 
-    // --- layered wireframe shells (restored per explicit user request:
-    // "bring the orb ui back, when there was both orb and avatar") ---
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 0.85);
+    this.scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    dirLight.position.set(2.5, 4, 3.5);
+    this.scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x00f0ff, 0.9);
+    rimLight.position.set(-3, 2, -2.5);
+    this.scene.add(rimLight);
+
+    // --- layered wireframe shells (framing the chibi avatar as an energy aura) ---
     const shellConfigs = [
-      { radius: 1.4, detail: 1, speed: 1 },
-      { radius: 1.75, detail: 2, speed: -0.6 },
-      { radius: 2.1, detail: 1, speed: 0.4 },
+      { radius: 1.8, detail: 1, speed: 0.8 },
+      { radius: 2.2, detail: 2, speed: -0.5 },
+      { radius: 2.6, detail: 1, speed: 0.3 },
     ];
     for (const cfg of shellConfigs) {
       const geo = new THREE.IcosahedronGeometry(cfg.radius, cfg.detail);
@@ -492,7 +531,7 @@ export class OrbScene {
         color: 0x2ea6ff,
         wireframe: true,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.16,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.userData.speed = cfg.speed;
@@ -500,8 +539,8 @@ export class OrbScene {
       this.shells.push(mesh);
     }
 
-    // --- spiral / pulsing inner core ---
-    const coreGeo = new THREE.IcosahedronGeometry(0.75, 3);
+    // --- pulsing floating AI halo drone core ---
+    const coreGeo = new THREE.IcosahedronGeometry(0.28, 3);
     this.coreMaterial = new THREE.MeshStandardMaterial({
       color: 0x2ea6ff,
       emissive: 0x0c3a5c,
@@ -511,6 +550,7 @@ export class OrbScene {
       wireframe: false,
     });
     this.core = new THREE.Mesh(coreGeo, this.coreMaterial);
+    this.core.position.set(0, 1.4, -0.35);
     this.scene.add(this.core);
 
     // --- orbiting debris ring ---
@@ -618,23 +658,15 @@ export class OrbScene {
         uProgress: { value: this.avatarProgress },
         uTime: { value: 0 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        // Mechanical-skull restyle: cool steel/silver contour instead of
-        // blue, hot red instead of amber — an original color scheme, not
-        // copying any specific character's exact palette.
-        uColorCool: { value: new THREE.Color(0x8fa0b0) },
-        uColorWarm: { value: new THREE.Color(0xff2a1a) },
-        uOpacity: { value: 0.5 },
+        uAmplitude: { value: 0 },
+        uColorCool: { value: new THREE.Color(this.params.avatarCool) },
+        uColorWarm: { value: new THREE.Color(this.params.avatarWarm) },
+        uOpacity: { value: 0.55 },
       },
       vertexShader: AVATAR_VERTEX_SHADER,
       fragmentShader: AVATAR_FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
-      // Normal (not additive) blending deliberately: with 18k particles the
-      // assembled state packs densely, and additive blending sums colors
-      // unboundedly with overlap — confirmed live it blew the whole head
-      // shape out to solid white once particles converged. Normal blending
-      // naturally caps brightness regardless of overlap density, so the
-      // silhouette stays readable whether scattered or fully assembled.
       blending: THREE.NormalBlending,
     });
 
@@ -642,7 +674,13 @@ export class OrbScene {
 
     this.avatarGroup = new THREE.Group();
     this.avatarGroup.add(this.avatarParticles);
+    this.avatarGroup.visible = false;
     this.scene.add(this.avatarGroup);
+
+    // --- 3D Chibi Person Character Avatar ---
+    this.chibiAvatar = new ChibiAvatar();
+    this.chibiAvatar.group.position.set(0, -0.1, 0);
+    this.scene.add(this.chibiAvatar.group);
 
     // --- scan / radar rings ---
     for (let i = 0; i < 2; i++) {
@@ -693,8 +731,33 @@ export class OrbScene {
     this.notifyRing.rotation.x = Math.PI / 2;
     this.scene.add(this.notifyRing);
 
-    // --- orbiting graph layer: empty until the first setMemoryGraph()
-    // call supplies data ---
+    // --- holographic projection grid floor ---
+    const gridGeo = new THREE.RingGeometry(0.6, 5.5, 64, 6);
+    const gridMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide,
+    });
+    this.gridFloor = new THREE.Mesh(gridGeo, gridMat);
+    this.gridFloor.rotation.x = Math.PI / 2;
+    this.gridFloor.position.y = -2.1;
+    this.scene.add(this.gridFloor);
+
+    // --- outer rotating HUD telemetry reticle ring ---
+    const hudRingGeo = new THREE.RingGeometry(2.36, 2.39, 72);
+    const hudRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+    });
+    this.hudRing = new THREE.Mesh(hudRingGeo, hudRingMat);
+    this.hudRing.rotation.x = Math.PI / 2;
+    this.scene.add(this.hudRing);
+
+    // --- orbiting graph layer ---
     this.memoryGraphGroup = new THREE.Group();
     this.scene.add(this.memoryGraphGroup);
 
@@ -726,6 +789,22 @@ export class OrbScene {
     this.coreMaterial.color.setHex(this.params.coreColor);
     this.coreMaterial.emissive.setHex(this.params.coreEmissive);
     this.bloomPass.strength = this.params.bloomStrength;
+
+    if (this.chibiAvatar) {
+      this.chibiAvatar.setState(state);
+    }
+
+    if (this.avatarMaterial) {
+      this.avatarMaterial.uniforms.uColorCool.value.setHex(this.params.avatarCool);
+      this.avatarMaterial.uniforms.uColorWarm.value.setHex(this.params.avatarWarm);
+    }
+
+    // Morph shells color subtly
+    for (const shell of this.shells) {
+      const mat = shell.material as THREE.MeshBasicMaterial;
+      if (mat) mat.color.setHex(this.params.coreColor);
+    }
+
     if (!this.avatarLocked && (state === "LISTENING" || state === "SPEAKING")) {
       this.avatarLocked = true;
     }
@@ -740,11 +819,24 @@ export class OrbScene {
     return this.fps;
   }
 
-  /** Real audio amplitude hook (Web Audio AnalyserNode). Value 0..1. Not
-   * currently driving anything on the avatar-only visual, kept as a public
-   * hook in case a future pass wants amplitude-reactive particle motion. */
+  /** Real audio amplitude hook (Web Audio AnalyserNode). Value 0..1. */
   setAmplitude(value: number) {
     this.amplitude = value;
+    if (this.chibiAvatar) {
+      this.chibiAvatar.setAmplitude(value);
+    }
+  }
+
+  setAvatarTheme(theme: ChibiTheme) {
+    this.chibiAvatar?.applyTheme(theme);
+  }
+
+  customizeAvatar(options: ChibiCustomization) {
+    this.chibiAvatar?.customize(options);
+  }
+
+  getAvatarTheme(): ChibiTheme {
+    return this.chibiAvatar?.getTheme() || "cyber_neon";
   }
 
   setRotationDelta(dx: number, dy: number) {
@@ -768,7 +860,7 @@ export class OrbScene {
    * amber for "needs your confirmation" (confirmation_required), red for
    * a real failure — instead of every tool result looking identical. */
   pulseToolResult(kind: "success" | "confirmation" | "error") {
-    this.toolPulseUntil = this.clock.elapsedTime + 0.9;
+    this.toolPulseUntil = this.elapsedTime + 0.9;
     this.toolPulseColor =
       kind === "error" ? 0xff4a3b : kind === "confirmation" ? 0xffc24f : 0x4fffb0;
   }
@@ -795,6 +887,7 @@ export class OrbScene {
     nodes: { id: number; label: string }[],
     edges: { from: number; to: number; relation: string }[]
   ) {
+    if (!this.memoryGraphGroup) return;
     while (this.memoryGraphGroup.children.length > 0) {
       const child = this.memoryGraphGroup.children.pop()!;
       if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
@@ -870,6 +963,9 @@ export class OrbScene {
   }
 
   resize(width: number, height: number) {
+    if (typeof window !== "undefined") {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    }
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
@@ -877,6 +973,7 @@ export class OrbScene {
   }
 
   start() {
+    this.lastTime = performance.now() * 0.001;
     const loop = () => {
       this.rafId = requestAnimationFrame(loop);
       this.tick();
@@ -885,8 +982,11 @@ export class OrbScene {
   }
 
   private tick() {
-    const dt = this.clock.getDelta();
-    const t = this.clock.elapsedTime;
+    const now = performance.now() * 0.001;
+    const dt = this.lastTime === 0 ? 0.016 : Math.min(now - this.lastTime, 0.1);
+    this.lastTime = now;
+    this.elapsedTime += dt;
+    const t = this.elapsedTime;
 
     this.fpsFrameCount++;
     if (t - this.fpsWindowStart >= 1) {
@@ -964,7 +1064,17 @@ export class OrbScene {
     this.avatarProgress += (targetProgress - this.avatarProgress) * dt * 1.5;
     this.avatarMaterial.uniforms.uProgress.value = this.avatarProgress;
     this.avatarMaterial.uniforms.uTime.value = t;
+    this.avatarMaterial.uniforms.uAmplitude.value = pulseSource;
     this.avatarGroup.rotation.y += dt * 0.015 * (1 - this.avatarProgress);
+
+    // Update 3D Chibi Avatar animations, lip sync, and gestures
+    if (this.chibiAvatar) {
+      this.chibiAvatar.update(dt, t);
+    }
+
+    // rotate holographic floor and telemetry HUD reticle ring
+    if (this.gridFloor) this.gridFloor.rotation.z += dt * 0.035;
+    if (this.hudRing) this.hudRing.rotation.z -= dt * 0.08;
 
     // scan rings sweep opacity, speed scaled by state
     for (const ring of this.scanRings) {
@@ -1021,10 +1131,12 @@ export class OrbScene {
 
     // orbiting graph layer: slow ambient orbit (independent of camera/avatar
     // rotation) plus a smoothed fade whenever setMemoryGraph() rebuilds it
-    this.memoryGraphGroup.rotation.y += dt * 0.025;
-    this.memoryGraphOpacity += (this.memoryGraphTargetOpacity - this.memoryGraphOpacity) * dt * 1.2;
-    for (const { material, targetOpacity } of this.memoryGraphMaterials) {
-      material.opacity = this.memoryGraphOpacity * targetOpacity;
+    if (this.memoryGraphGroup) {
+      this.memoryGraphGroup.rotation.y += dt * 0.025;
+      this.memoryGraphOpacity += (this.memoryGraphTargetOpacity - this.memoryGraphOpacity) * dt * 1.2;
+      for (const { material, targetOpacity } of this.memoryGraphMaterials) {
+        material.opacity = this.memoryGraphOpacity * targetOpacity;
+      }
     }
 
     // ambient notification ring: slow breathing opacity while

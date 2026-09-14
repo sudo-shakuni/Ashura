@@ -1,5 +1,5 @@
-import RaoneOrb from "@/components/RaoneOrb";
+import AshuraOrb from "@/components/AshuraOrb";
 
 export default function Home() {
-  return <RaoneOrb />;
+  return <AshuraOrb />;
 }

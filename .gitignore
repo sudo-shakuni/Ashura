@@ -44,3 +44,7 @@ mcp/data/youtube_token.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated AI rules
+AGENTS.md
+CLAUDE.md
