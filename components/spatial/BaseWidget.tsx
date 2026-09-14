@@ -74,6 +74,7 @@ export function BaseWidget({ id, title, iconName, children }: BaseWidgetProps) {
         position: 'absolute',
         top: 0,
         left: 0,
+        pointerEvents: 'auto',
       }}
       className="glass-panel flex flex-col shadow-2xl overflow-hidden select-none"
     >

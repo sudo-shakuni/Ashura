@@ -1886,79 +1886,77 @@ export default function AshuraOrb() {
       {spatialMode && (
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 12 }}>
           {widgets.map((w) => (
-            <div key={w.id} style={{ pointerEvents: "auto" }}>
-              <BaseWidget id={w.id} title={w.title} iconName={w.icon}>
-                {w.type === "chronos" && (
-                  <ChronosWidget
-                    activeTimer={
-                      timerState.active || timerState.remainingSec > 0
-                        ? {
-                            ...timerState,
-                            onDismiss: () => setTimerState((p) => ({ ...p, active: false })),
-                          }
-                        : null
-                    }
-                  />
-                )}
-                {w.type === "telemetry" && (
-                  <TelemetryWidget
-                    currentProvider={brainProvider}
-                    isListening={voiceOn && state === "LISTENING"}
-                    isSpeaking={state === "SPEAKING"}
-                    fps={fps}
-                  />
-                )}
-                {w.type === "neural-log" && (
-                  <NeuralLogWidget
-                    messages={neuralMessages}
-                    onClear={() => setNeuralMessages([])}
-                    statusText={transcript && !transcript.isUser ? transcript.text : undefined}
-                  />
-                )}
-                {w.type === "scratchpad" && (
-                  <ScratchpadWidget
-                    notes={notes.map((text, idx) => ({ id: `n_${idx}`, text, timestamp: `LOG #${idx + 1}` }))}
-                    onAddNote={(text) => {
-                      setNotes((prev) => [text, ...prev]);
-                    }}
-                    onDeleteNote={(id) => {
-                      const idx = parseInt(id.replace("n_", ""), 10);
-                      setNotes((prev) => prev.filter((_, i) => i !== idx));
-                    }}
-                  />
-                )}
-                {w.type === "video-player" && (
-                  <VideoPlayerWidget
-                    videoId={videoPlayer.url.match(/embed\/([^?&]+)/)?.[1] || "jfKfPfyJRdk"}
-                    title={videoPlayer.title}
-                    isPlaying={!videoPlayer.minimized}
-                    onSelectPreset={(id, title) => {
-                      setVideoPlayer({
-                        open: true,
-                        minimized: false,
-                        url: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`,
-                        title,
-                      });
-                    }}
-                    onTogglePlay={() => {
-                      setVideoPlayer((p) => ({ ...p, minimized: !p.minimized }));
-                    }}
-                  />
-                )}
-                {w.type === "rps-game" && (
-                  <RpsArenaWidget
-                    playerMove={
-                      (rpsModal?.userMove as HandPose) || detectedPose || "unknown"
-                    }
-                    agentMove={(rpsModal?.ashuraMove as HandPose) || null}
-                    countdown={rpsModal?.countdown || 0}
-                    result={rpsModal?.result || null}
-                    isPlaying={rpsModal?.countdown ? rpsModal.countdown > 0 : false}
-                    onStartGame={() => startRpsGame()}
-                  />
-                )}
-              </BaseWidget>
-            </div>
+            <BaseWidget key={w.id} id={w.id} title={w.title} iconName={w.icon}>
+              {w.type === "chronos" && (
+                <ChronosWidget
+                  activeTimer={
+                    timerState.active || timerState.remainingSec > 0
+                      ? {
+                          ...timerState,
+                          onDismiss: () => setTimerState((p) => ({ ...p, active: false })),
+                        }
+                      : null
+                  }
+                />
+              )}
+              {w.type === "telemetry" && (
+                <TelemetryWidget
+                  currentProvider={brainProvider}
+                  isListening={voiceOn && state === "LISTENING"}
+                  isSpeaking={state === "SPEAKING"}
+                  fps={fps}
+                />
+              )}
+              {w.type === "neural-log" && (
+                <NeuralLogWidget
+                  messages={neuralMessages}
+                  onClear={() => setNeuralMessages([])}
+                  statusText={transcript && !transcript.isUser ? transcript.text : undefined}
+                />
+              )}
+              {w.type === "scratchpad" && (
+                <ScratchpadWidget
+                  notes={notes.map((text, idx) => ({ id: `n_${idx}`, text, timestamp: `LOG #${idx + 1}` }))}
+                  onAddNote={(text) => {
+                    setNotes((prev) => [text, ...prev]);
+                  }}
+                  onDeleteNote={(id) => {
+                    const idx = parseInt(id.replace("n_", ""), 10);
+                    setNotes((prev) => prev.filter((_, i) => i !== idx));
+                  }}
+                />
+              )}
+              {w.type === "video-player" && (
+                <VideoPlayerWidget
+                  videoId={videoPlayer.url.match(/embed\/([^?&]+)/)?.[1] || "jfKfPfyJRdk"}
+                  title={videoPlayer.title}
+                  isPlaying={!videoPlayer.minimized}
+                  onSelectPreset={(id, title) => {
+                    setVideoPlayer({
+                      open: true,
+                      minimized: false,
+                      url: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`,
+                      title,
+                    });
+                  }}
+                  onTogglePlay={() => {
+                    setVideoPlayer((p) => ({ ...p, minimized: !p.minimized }));
+                  }}
+                />
+              )}
+              {w.type === "rps-game" && (
+                <RpsArenaWidget
+                  playerMove={
+                    (rpsModal?.userMove as HandPose) || detectedPose || "unknown"
+                  }
+                  agentMove={(rpsModal?.ashuraMove as HandPose) || null}
+                  countdown={rpsModal?.countdown || 0}
+                  result={rpsModal?.result || null}
+                  isPlaying={rpsModal?.countdown ? rpsModal.countdown > 0 : false}
+                  onStartGame={() => startRpsGame()}
+                />
+              )}
+            </BaseWidget>
           ))}
         </div>
       )}
@@ -1993,8 +1991,8 @@ export default function AshuraOrb() {
         visionScanning={visionScanning}
       />
 
-      {/* BOTTOM-RIGHT STATE SIMULATION DOCK */}
-      {!showChatInput && (
+      {/* BOTTOM-RIGHT STATE SIMULATION DOCK (Focused Mode Only) */}
+      {!spatialMode && !showChatInput && (
         <div
           className="hud-panel hud-chamfer"
           style={{
