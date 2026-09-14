@@ -2,8 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OrbScene, type OrbState, type ChibiTheme, type ChibiAction, CHIBI_THEMES } from "@/lib/orbScene";
-import { HandTracker } from "@/lib/handTracker";
+import { HandTracker, type HandPose } from "@/lib/handTracker";
 import { VoiceAssistant } from "@/lib/voiceAssistant";
+import { useWidgetStore } from "@/store/useWidgetStore";
+import { BaseWidget } from "@/components/spatial/BaseWidget";
+import { AntigravityCanvas } from "@/components/spatial/AntigravityCanvas";
+import { OmniCommandBar } from "@/components/spatial/OmniCommandBar";
+import { ChronosWidget } from "@/components/spatial/widgets/ChronosWidget";
+import { TelemetryWidget } from "@/components/spatial/widgets/TelemetryWidget";
+import { NeuralLogWidget, type NeuralMessage } from "@/components/spatial/widgets/NeuralLogWidget";
+import { ScratchpadWidget } from "@/components/spatial/widgets/ScratchpadWidget";
+import { VideoPlayerWidget } from "@/components/spatial/widgets/VideoPlayerWidget";
+import { RpsArenaWidget } from "@/components/spatial/widgets/RpsArenaWidget";
 
 function playCyberBeep() {
   if (typeof window === "undefined") return;
@@ -66,7 +76,6 @@ export default function AshuraOrb() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<{ text: string; isUser: boolean } | null>(null);
   const [showChatInput, setShowChatInput] = useState(false);
-  const [textInput, setTextInput] = useState("");
   const [activeToolPill, setActiveToolPill] = useState<string | null>(null);
   const voiceRef = useRef<VoiceAssistant | null>(null);
   // Camera self-view is off by default even while gestures are on — hand
@@ -193,6 +202,27 @@ export default function AshuraOrb() {
     } catch {}
   }, [notes]);
 
+  // Aura OS Spatial Workspace Store
+  const {
+    widgets,
+    spatialMode,
+    setSpatialMode,
+    particleCanvasEnabled,
+    addWidget,
+  } = useWidgetStore();
+
+  // Real-time Neural Conversation Stream for NeuralLogWidget
+  const [neuralMessages, setNeuralMessages] = useState<NeuralMessage[]>([
+    {
+      id: "m_init",
+      sender: "ASHURA",
+      text: "Aura OS Spatial Workspace loaded. Neural link online. Ready for directives.",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
+  ]);
+
+  const [detectedPose, setDetectedPose] = useState<HandPose>("unknown");
+
   // Intro video: plays on load over the orb, fades out on first interaction
   // so the scene underneath is revealed. introFading drives the CSS
   // transition; introVisible unmounts it afterwards so it stops costing
@@ -292,6 +322,9 @@ export default function AshuraOrb() {
     setGestureError(null);
     try {
       const tracker = new HandTracker();
+      tracker.setPoseListener((pose) => {
+        setDetectedPose(pose);
+      });
       await tracker.start(video, (gesture) => {
         if (gesture.type === "rotate") {
           sceneRef.current?.setRotationDelta(gesture.dx, gesture.dy);
@@ -317,6 +350,23 @@ export default function AshuraOrb() {
       },
       onTranscript: (text, isUser) => {
         setTranscript({ text, isUser });
+        if (text.trim()) {
+          setNeuralMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.sender === (isUser ? "USER" : "ASHURA") && Date.now() - Number(last.id.split("_")[1] || 0) < 3000) {
+              return [...prev.slice(0, -1), { ...last, text }];
+            }
+            return [
+              ...prev,
+              {
+                id: `m_${Date.now()}`,
+                sender: isUser ? "USER" : "ASHURA",
+                text,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              },
+            ];
+          });
+        }
       },
       onError: (err) => {
         setVoiceError(err);
@@ -325,6 +375,20 @@ export default function AshuraOrb() {
         sceneRef.current?.pulseToolResult(kind);
         setActiveToolPill(`Tool status: ${kind.toUpperCase()}`);
         setTimeout(() => setActiveToolPill(null), 3000);
+      },
+      onToolsExecuted: (tools) => {
+        if (tools && tools.length > 0) {
+          setNeuralMessages((prev) => [
+            ...prev,
+            {
+              id: `m_${Date.now()}`,
+              sender: "TOOL",
+              text: `Dispatched ${tools.length} system directive(s): ${tools.map((t) => t.name).join(", ")}`,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              tools: tools.map((t) => t.name),
+            },
+          ]);
+        }
       },
       onMemoryGraphUpdate: (graph) => {
         sceneRef.current?.setMemoryGraph(graph.nodes, graph.edges);
@@ -362,6 +426,16 @@ export default function AshuraOrb() {
             url: v.url || "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
             title: v.title || "Holographic Video Stream",
           });
+          addWidget({
+            id: "w_video-player",
+            type: "video-player",
+            title: "Cyber Video Player",
+            icon: "Video",
+            x: Math.max(20, Math.floor(window.innerWidth / 2 - 220)),
+            y: 100,
+            width: 440,
+            height: 340,
+          });
         }
         setActiveToolPill(`VIDEO: ${v.action.toUpperCase()}`);
         setTimeout(() => setActiveToolPill(null), 3000);
@@ -373,16 +447,45 @@ export default function AshuraOrb() {
           totalSec: t.durationSec,
           label: t.label || "Countdown Timer",
         });
+        addWidget({
+          id: "w_chronos",
+          type: "chronos",
+          title: "Chronos",
+          icon: "Clock",
+          x: 40,
+          y: 70,
+          width: 280,
+          height: 180,
+        });
         setActiveToolPill(`TIMER: ${Math.round(t.durationSec)}s`);
         setTimeout(() => setActiveToolPill(null), 3000);
       },
       onNoteAction: (n) => {
         if (n.action === "add" && n.text) {
           setNotes((prev) => [n.text!, ...prev]);
+          addWidget({
+            id: "w_scratchpad",
+            type: "scratchpad",
+            title: "Scratchpad",
+            icon: "Edit3",
+            x: Math.max(20, window.innerWidth - 380),
+            y: 70,
+            width: 340,
+            height: 320,
+          });
         } else if (n.action === "clear") {
           setNotes([]);
         } else if (n.action === "list") {
-          setShowNotesDrawer(true);
+          addWidget({
+            id: "w_scratchpad",
+            type: "scratchpad",
+            title: "Scratchpad",
+            icon: "Edit3",
+            x: Math.max(20, window.innerWidth - 380),
+            y: 70,
+            width: 340,
+            height: 320,
+          });
         }
         setActiveToolPill(`SCRATCHPAD: ${n.action.toUpperCase()}`);
         setTimeout(() => setActiveToolPill(null), 3000);
@@ -394,6 +497,16 @@ export default function AshuraOrb() {
           userMove: rps.userMove,
           ashuraMove: rps.ashuraMove,
           result: rps.result,
+        });
+        addWidget({
+          id: "w_rps-game",
+          type: "rps-game",
+          title: "RPS Gesture Game",
+          icon: "Gamepad2",
+          x: Math.max(20, Math.floor(window.innerWidth / 2 - 180)),
+          y: 120,
+          width: 360,
+          height: 340,
         });
         if (rps.result === "win") {
           sceneRef.current?.triggerAvatarAction("cheer");
@@ -409,7 +522,7 @@ export default function AshuraOrb() {
     });
     voiceRef.current = assistant;
     return assistant;
-  }, []);
+  }, [addWidget]);
 
   const selectAvatarTheme = (theme: ChibiTheme) => {
     dismissIntro();
@@ -445,16 +558,6 @@ export default function AshuraOrb() {
     } finally {
       setVoiceBusy(false);
     }
-  };
-
-  const handleTextSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const query = textInput.trim();
-    if (!query) return;
-    dismissIntro();
-    setTextInput("");
-    const assistant = getOrCreateAssistant();
-    void assistant.askAgent(query);
   };
 
   const captureWebcamSnapshot = async (): Promise<string | null> => {
@@ -578,6 +681,7 @@ export default function AshuraOrb() {
       if (e.key === "g" || e.key === "G") void toggleGestures();
       else if (e.key === "v" || e.key === "V") toggleVoice();
       else if (e.key === "t" || e.key === "T") setShowChatInput((p) => !p);
+      else if (e.key === "o" || e.key === "O") setSpatialMode((p) => !p);
       else if (e.key === "c" || e.key === "C") setShowCameraPreview((p) => !p);
       else if (e.key === "d" || e.key === "D") setPanelVisible((p) => !p);
       else if (e.key === "r" || e.key === "R") sceneRef.current?.resetView();
@@ -587,7 +691,7 @@ export default function AshuraOrb() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gesturesOn, voiceOn, introVisible, introFading, textInput, getOrCreateAssistant]);
+  }, [gesturesOn, voiceOn, introVisible, introFading, spatialMode, getOrCreateAssistant]);
 
   useEffect(() => {
     return () => {
@@ -600,8 +704,11 @@ export default function AshuraOrb() {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#03060d", overflow: "hidden" }}>
+      {/* 2D Antigravity Particle Constellation Canvas */}
+      {particleCanvasEnabled && <AntigravityCanvas />}
+
       {/* 3D WebGL Canvas */}
-      <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />
+      <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%", position: "relative", zIndex: 2 }} />
 
       {/* Sci-Fi Vignette and Scanlines Overlay */}
       <div className="hud-vignette" />
@@ -811,6 +918,15 @@ export default function AshuraOrb() {
           >
             <span>🎭</span>
             <span>CHIBI: {CHIBI_THEMES[currentAvatarTheme]?.name || "CHIBI"}</span>
+          </button>
+          <button
+            onClick={() => setSpatialMode((p) => !p)}
+            className={`hud-button ${spatialMode ? "active" : ""}`}
+            title="Toggle Aura OS Spatial Workspace [O]"
+            style={{ padding: "6px 12px", fontSize: 11 }}
+          >
+            <span>🌌</span>
+            <span>SPATIAL OS: {spatialMode ? "ON [O]" : "OFF [O]"}</span>
           </button>
           <button
             onClick={() => sceneRef.current?.resetView()}
@@ -1151,8 +1267,8 @@ export default function AshuraOrb() {
         )}
       </div>
 
-      {/* FLOATING HOLOGRAPHIC VIDEO PLAYER DOCK */}
-      {videoPlayer.open && (
+      {/* FLOATING HOLOGRAPHIC VIDEO PLAYER DOCK (Focused Mode) */}
+      {videoPlayer.open && !spatialMode && (
         <div
           className="hud-panel hud-chamfer"
           style={{
@@ -1294,8 +1410,8 @@ export default function AshuraOrb() {
         </div>
       )}
 
-      {/* LIVE COUNTDOWN TIMER WIDGET */}
-      {(timerState.active || timerState.remainingSec > 0) && (
+      {/* LIVE COUNTDOWN TIMER WIDGET (Focused Mode) */}
+      {(timerState.active || timerState.remainingSec > 0) && !spatialMode && (
         <div
           className="hud-panel hud-chamfer"
           style={{
@@ -1344,8 +1460,8 @@ export default function AshuraOrb() {
         </div>
       )}
 
-      {/* SCRATCHPAD NOTES DRAWER */}
-      {showNotesDrawer && (
+      {/* SCRATCHPAD NOTES DRAWER (Focused Mode) */}
+      {showNotesDrawer && !spatialMode && (
         <div
           className="hud-panel hud-chamfer"
           style={{
@@ -1462,8 +1578,8 @@ export default function AshuraOrb() {
         </div>
       )}
 
-      {/* ROCK PAPER SCISSORS ARENA MODAL */}
-      {rpsModal?.open && (
+      {/* ROCK PAPER SCISSORS ARENA MODAL (Focused Mode) */}
+      {rpsModal?.open && !spatialMode && (
         <div
           className="hud-panel hud-chamfer"
           style={{
@@ -1766,114 +1882,116 @@ export default function AshuraOrb() {
         </div>
       )}
 
-      {/* FLOATING COMMAND PROMPT DOCK */}
-      {showChatInput && (
-        <div
-          className="hud-panel hud-chamfer"
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 5,
-            width: "90%",
-            maxWidth: 640,
-            padding: "8px 12px",
-            boxShadow: "0 12px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 240, 255, 0.25)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          <div className="corner-bracket corner-tl" />
-          <div className="corner-bracket corner-tr" />
-          <div className="corner-bracket corner-bl" />
-          <div className="corner-bracket corner-br" />
-
-          <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ color: "#00f0ff", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
-              ASHURA://EXEC&gt;
-            </span>
-            <input
-              type="text"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Ask Ashura or command PC (e.g. 'open notepad', 'specs', 'calculator')..."
-              autoFocus
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "#ffffff",
-                fontSize: 13,
-                fontFamily: "inherit",
-                letterSpacing: "0.04em",
-              }}
-            />
-            <button
-              type="submit"
-              className="hud-button active"
-              style={{ padding: "6px 14px", fontSize: 11 }}
-            >
-              DISPATCH ↵
-            </button>
-          </form>
-
-          {/* Quick command suggestion pills */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingTop: 4 }}>
-            {[
-              { label: "LOFI BEATS ☕", cmd: "play lofi beats" },
-              { label: "SYNTHWAVE 🌆", cmd: "play synthwave" },
-              { label: "DANCE 💃", cmd: "dance for me" },
-              { label: "RPS GAME ✊", cmd: "play rock paper scissors" },
-              { label: "5M TIMER ⏱️", cmd: "set a 5 minute timer" },
-              { label: "TAKE NOTE 📝", cmd: "add note review project progress" },
-              { label: "SPACEX NEWS", cmd: "what is happening with SpaceX today?" },
-              { label: "AI NEWS", cmd: "what is the latest news about AI?" },
-              { label: "FIX AUDIO", cmd: "my audio is not working, how do I fix it?" },
-              { label: "REACT VS NEXT", cmd: "compare React vs Next.js for a beginner" },
-              { label: "WEATHER", cmd: "what is the weather today?" },
-              { label: "54*23", cmd: "calculate 54 * 23" },
-              { label: "20% OF 850", cmd: "what is 20 percent of 850" },
-              { label: "ALAN TURING", cmd: "who was Alan Turing?" },
-              { label: "YOUTUBE", cmd: "open youtube" },
-              { label: "BATTERY", cmd: "battery status" },
-              { label: "VOLUME UP", cmd: "volume up" },
-              { label: "DOWNLOADS", cmd: "open downloads" },
-              { label: "JOKE", cmd: "tell me a joke" },
-              { label: "ANIME GIRL", cmd: "change avatar to anime girl" },
-              { label: "MECHA BOT", cmd: "switch avatar to mecha robot" },
-              { label: "SPECS", cmd: "what are my system specs?" },
-              { label: "NOTEPAD", cmd: "open notepad" },
-            ].map((chip) => (
-              <button
-                key={chip.label}
-                type="button"
-                onClick={() => {
-                  setTextInput(chip.cmd);
-                  const assistant = getOrCreateAssistant();
-                  void assistant.askAgent(chip.cmd);
-                }}
-                style={{
-                  background: "rgba(0, 240, 255, 0.08)",
-                  border: "1px solid rgba(0, 240, 255, 0.2)",
-                  color: "#8cefff",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                +{chip.label}
-              </button>
-            ))}
-          </div>
+      {/* AURA OS SPATIAL WORKSPACE WIDGETS */}
+      {spatialMode && (
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 12 }}>
+          {widgets.map((w) => (
+            <div key={w.id} style={{ pointerEvents: "auto" }}>
+              <BaseWidget id={w.id} title={w.title} iconName={w.icon}>
+                {w.type === "chronos" && (
+                  <ChronosWidget
+                    activeTimer={
+                      timerState.active || timerState.remainingSec > 0
+                        ? {
+                            ...timerState,
+                            onDismiss: () => setTimerState((p) => ({ ...p, active: false })),
+                          }
+                        : null
+                    }
+                  />
+                )}
+                {w.type === "telemetry" && (
+                  <TelemetryWidget
+                    currentProvider={brainProvider}
+                    isListening={voiceOn && state === "LISTENING"}
+                    isSpeaking={state === "SPEAKING"}
+                    fps={fps}
+                  />
+                )}
+                {w.type === "neural-log" && (
+                  <NeuralLogWidget
+                    messages={neuralMessages}
+                    onClear={() => setNeuralMessages([])}
+                    statusText={transcript && !transcript.isUser ? transcript.text : undefined}
+                  />
+                )}
+                {w.type === "scratchpad" && (
+                  <ScratchpadWidget
+                    notes={notes.map((text, idx) => ({ id: `n_${idx}`, text, timestamp: `LOG #${idx + 1}` }))}
+                    onAddNote={(text) => {
+                      setNotes((prev) => [text, ...prev]);
+                    }}
+                    onDeleteNote={(id) => {
+                      const idx = parseInt(id.replace("n_", ""), 10);
+                      setNotes((prev) => prev.filter((_, i) => i !== idx));
+                    }}
+                  />
+                )}
+                {w.type === "video-player" && (
+                  <VideoPlayerWidget
+                    videoId={videoPlayer.url.match(/embed\/([^?&]+)/)?.[1] || "jfKfPfyJRdk"}
+                    title={videoPlayer.title}
+                    isPlaying={!videoPlayer.minimized}
+                    onSelectPreset={(id, title) => {
+                      setVideoPlayer({
+                        open: true,
+                        minimized: false,
+                        url: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`,
+                        title,
+                      });
+                    }}
+                    onTogglePlay={() => {
+                      setVideoPlayer((p) => ({ ...p, minimized: !p.minimized }));
+                    }}
+                  />
+                )}
+                {w.type === "rps-game" && (
+                  <RpsArenaWidget
+                    playerMove={
+                      (rpsModal?.userMove as HandPose) || detectedPose || "unknown"
+                    }
+                    agentMove={(rpsModal?.ashuraMove as HandPose) || null}
+                    countdown={rpsModal?.countdown || 0}
+                    result={rpsModal?.result || null}
+                    isPlaying={rpsModal?.countdown ? rpsModal.countdown > 0 : false}
+                    onStartGame={() => startRpsGame()}
+                  />
+                )}
+              </BaseWidget>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* UNIFIED OMNI COMMAND BAR (App Drawer + Tools + Command Input) */}
+      <OmniCommandBar
+        onCommand={(cmd) => {
+          dismissIntro();
+          const assistant = getOrCreateAssistant();
+          void assistant.askAgent(cmd);
+          setNeuralMessages((prev) => [
+            ...prev,
+            {
+              id: `m_${Date.now()}`,
+              sender: "USER",
+              text: cmd,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            },
+          ]);
+        }}
+        isVoiceActive={voiceOn}
+        onToggleVoice={toggleVoice}
+        onScanCamera={handleCameraVisionScan}
+        onScanScreen={handleScreenVisionScan}
+        onTriggerDance={() => {
+          sceneRef.current?.triggerAvatarAction("dance");
+          setActiveToolPill("EMOTE: DANCE");
+          setTimeout(() => setActiveToolPill(null), 3000);
+        }}
+        onToggleSpatialMode={() => setSpatialMode(!spatialMode)}
+        spatialMode={spatialMode}
+        visionScanning={visionScanning}
+      />
 
       {/* BOTTOM-RIGHT STATE SIMULATION DOCK */}
       {!showChatInput && (

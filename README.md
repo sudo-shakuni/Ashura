@@ -29,7 +29,14 @@ It can be run **100% locally and completely free without any API keys**, or conn
 
 ## 🚀 Key Capabilities
 
-### 👁️ 1. Multimodal Real-Time Vision (Camera & Screen Scan)
+### 🌌 1. Aura OS Spatial Workspace Integration (Draggable Window Manager)
+- **Framer Motion Draggable Windows**: Every capability (Chronos Clock, Hardware Telemetry, Neural Conversation Stream, Scratchpad Notes, Cyber Video Player, and Rock-Paper-Scissors Arena) is a full-fledged draggable, minimizeable, stackable glassmorphic window.
+- **Persistent Layout Store**: Powered by Zustand (`useWidgetStore`) with automatic `localStorage` persistence (`ashura-aura-os-storage`) preserving window locations and z-index stacking orders across reloads.
+- **Antigravity 2D Particle Constellation Canvas**: Deep cyber background physics with cursor gravitational repulsion and connecting constellation beams running behind the 3D scene.
+- **Unified Omni Command Bar & `+` App Launcher**: Central bottom command deck with an expandable `+` App Drawer to spawn and manage windows, quick voice link, vision scans, and suggestions.
+- **Dual Display Modes**: Seamlessly switch between **Spatial Workspace Mode** and **Focused 3D Avatar Mode** anytime with <kbd>O</kbd> or the `[🌌 SPATIAL OS]` header toggle.
+
+### 👁️ 2. Multimodal Real-Time Vision (Camera & Screen Scan)
 - **Webcam Environment Scan**: With a single click (`[👁️ SCAN CAM]`) or voice command, Ashura captures a high-resolution snapshot from your camera and analyzes what you are holding, reading, or wearing using Gemini 2.0 Flash's multimodal vision engine.
 - **Desktop Screen Diagnostics**: Click `[🖥️ SCREEN SCAN]` to let Ashura inspect your open code editor, error dialog, or website to give you instant debugging feedback and context.
 - **Zero-Key Heuristic Fallback**: If running offline without keys, Ashura's autonomous vision module provides instant situational visual confirmations.
@@ -192,6 +199,7 @@ You can customize Ashura's appearance in real-time by chatting or typing command
 
 | Key / Control | Function |
 |:---:|---|
+| <kbd>O</kbd> | Toggle Aura OS Spatial Workspace vs Focused 3D Avatar Mode |
 | <kbd>T</kbd> | Toggle Command Dock & Text Chat Prompt |
 | <kbd>V</kbd> | Toggle Voice Assistant (Microphone & TTS Speech Link) |
 | <kbd>G</kbd> | Toggle MediaPipe AI Hand-Gesture Tracking |
@@ -213,7 +221,14 @@ app/
 ├── layout.tsx              # Root HTML shell & viewport metadata
 └── page.tsx                # Dynamic client entry point for AshuraOrb
 components/
-└── AshuraOrb.tsx           # Main HUD view, Three.js canvas, gesture sync, speech synthesis & settings
+├── AshuraOrb.tsx           # Main HUD view, Three.js canvas, gesture sync, speech synthesis & settings
+└── spatial/
+    ├── BaseWidget.tsx      # Framer Motion draggable glassmorphic window manager
+    ├── AntigravityCanvas.tsx # 2D physics particle constellation background canvas
+    ├── OmniCommandBar.tsx  # Unified command palette with '+' App Drawer, mic, and vision scans
+    └── widgets/            # Draggable Aura OS widgets (Chronos, Telemetry, NeuralLog, Scratchpad, Video, RPS)
+store/
+└── useWidgetStore.ts       # Persistent Zustand store managing spatial windows & z-index stacking
 lib/
 ├── chibiAvatar.ts          # Procedural 3D Chibi avatar mesh generator (head, eyes, visor, hoodie, wings)
 ├── webSearch.ts            # DuckDuckGo & Wikipedia live contextual search RAG engine
