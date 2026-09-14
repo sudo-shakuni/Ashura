@@ -91,8 +91,8 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/sudo-shakuni/RaOnev1.0.git
-   cd RaOnev1.0
+   git clone https://github.com/sudo-shakuni/Ashura.git
+   cd Ashura
    ```
 
 2. **Install dependencies**:
