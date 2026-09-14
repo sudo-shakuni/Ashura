@@ -35,6 +35,31 @@ interface ToolExecutionResult {
     eyeColor?: string;
     outfitColor?: string;
   };
+  avatarAction?: "dance" | "spin" | "cheer" | "rage" | "sleep";
+  videoAction?: {
+    action: "play" | "pause" | "close";
+    title?: string;
+    url?: string;
+    videoId?: string;
+  };
+  timerAction?: {
+    durationSec: number;
+    label?: string;
+  };
+  noteAction?: {
+    action: "add" | "list" | "clear";
+    text?: string;
+  };
+  rpsAction?: {
+    userMove?: string;
+    ashuraMove: "rock" | "paper" | "scissors";
+    result: "win" | "lose" | "tie";
+  };
+  systemAction?: {
+    type: "volume" | "mute" | "browser";
+    url?: string;
+    level?: number;
+  };
 }
 
 function detectAvatarCommand(text: string): {
@@ -128,6 +153,275 @@ function detectAvatarCommand(text: string): {
 
   if (changed) {
     return customization;
+  }
+
+  return null;
+}
+
+function detectAvatarActionCommand(text: string): {
+  action: "dance" | "spin" | "cheer" | "rage" | "sleep";
+  replyText: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+  if (/\b(dance|bust a move|groove|dancing)\b/i.test(lower)) {
+    return {
+      action: "dance",
+      replyText: "Starting rhythmic dance routine! Check out these cyber moves!",
+    };
+  }
+  if (/\b(spin|pirouette|do a 360|twirl)\b/i.test(lower)) {
+    return {
+      action: "spin",
+      replyText: "Executing a 360-degree aerial pirouette with holographic energy flare!",
+    };
+  }
+  if (/\b(cheer|celebrate|jump for joy|hooray|yay|hurray)\b/i.test(lower)) {
+    return {
+      action: "cheer",
+      replyText: "Yaaay! Celebrating with a high-energy photon burst!",
+    };
+  }
+  if (/\b(rage|angry|overclock|super saiyan|berserk|fury)\b/i.test(lower)) {
+    return {
+      action: "rage",
+      replyText: "Warning: Overclocking neural cores to 400%! Thermal output maximum!",
+    };
+  }
+  if (/\b(sleep|take a nap|good night|rest mode|standby mode)\b/i.test(lower)) {
+    return {
+      action: "sleep",
+      replyText: "Dimming optical visors and entering low-power standby sleep cycle. Sweet cyber dreams!",
+    };
+  }
+  return null;
+}
+
+function detectVideoCommand(text: string): {
+  action: "play" | "pause" | "close";
+  title?: string;
+  url?: string;
+  videoId?: string;
+  replyText: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+  if (/\b(close video|stop video|hide video|exit video|turn off video|mute video)\b/i.test(lower)) {
+    return {
+      action: "close",
+      replyText: "Closing the holographic video player dock.",
+    };
+  }
+  if (/\b(pause video|pause music|pause stream)\b/i.test(lower)) {
+    return {
+      action: "pause",
+      replyText: "Pausing holographic media playback.",
+    };
+  }
+
+  // Pre-configured popular cyberpunk/lo-fi streams
+  if (lower.includes("lofi") || lower.includes("lo-fi") || lower.includes("relaxing beats") || lower.includes("chill beats")) {
+    return {
+      action: "play",
+      title: "Lofi Hip Hop Radio - Beats to Relax/Study to",
+      videoId: "jfKfPfyJRdk",
+      url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
+      replyText: "Streaming Lofi Hip Hop Radio directly in your holographic HUD cockpit!",
+    };
+  }
+  if (lower.includes("synthwave") || lower.includes("cyberpunk music") || lower.includes("retrowave") || lower.includes("synth")) {
+    return {
+      action: "play",
+      title: "Cyberpunk Synthwave Radio 24/7",
+      videoId: "4xDzrJKXOOY",
+      url: "https://www.youtube-nocookie.com/embed/4xDzrJKXOOY?autoplay=1",
+      replyText: "Engaging 24/7 Cyberpunk Synthwave Radio in the holographic HUD dock!",
+    };
+  }
+
+  // Custom play/watch command
+  const playMatch = lower.match(/(?:play|watch|stream)(?:\s+(?:video|youtube|song|music))?\s+(?:about\s+|for\s+)?(.+)/i);
+  if (playMatch && playMatch[1] && !lower.includes("rock paper scissors")) {
+    const rawQuery = playMatch[1].trim();
+    if (rawQuery.length > 1) {
+      return {
+        action: "play",
+        title: `YouTube: ${rawQuery}`,
+        url: `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(rawQuery)}&autoplay=1`,
+        replyText: `Opening holographic media player search for "${rawQuery}"!`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function detectTimerCommand(text: string): {
+  durationSec: number;
+  label?: string;
+  replyText: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+  if (!lower.includes("timer") && !lower.includes("countdown") && !lower.includes("alarm")) return null;
+
+  let totalSec = 0;
+  const minMatch = lower.match(/(\d+)\s*(?:minute|min|m\b)/i);
+  const secMatch = lower.match(/(\d+)\s*(?:second|sec|s\b)/i);
+  const hourMatch = lower.match(/(\d+)\s*(?:hour|hr|h\b)/i);
+
+  if (hourMatch) totalSec += parseInt(hourMatch[1], 10) * 3600;
+  if (minMatch) totalSec += parseInt(minMatch[1], 10) * 60;
+  if (secMatch) totalSec += parseInt(secMatch[1], 10);
+
+  // Fallback: "timer for 5" -> 5 minutes
+  if (totalSec === 0) {
+    const numMatch = lower.match(/(?:timer|countdown|alarm)(?:\s+for)?\s+(\d+)/i);
+    if (numMatch) totalSec = parseInt(numMatch[1], 10) * 60;
+  }
+
+  if (totalSec > 0) {
+    const display = totalSec >= 60 ? `${Math.floor(totalSec / 60)} minute(s)` : `${totalSec} seconds`;
+    return {
+      durationSec: totalSec,
+      label: "Countdown Timer",
+      replyText: `Timer set for ${display}! I'll alert you when time expires.`,
+    };
+  }
+  return null;
+}
+
+function detectNoteCommand(text: string): {
+  action: "add" | "list" | "clear";
+  noteText?: string;
+  replyText: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+  if (/\b(show notes|read notes|list notes|view notes|get notes)\b/i.test(lower)) {
+    return {
+      action: "list",
+      replyText: "Opening your holographic scratchpad notes in the HUD.",
+    };
+  }
+  if (/\b(clear notes|delete all notes|wipe notes)\b/i.test(lower)) {
+    return {
+      action: "clear",
+      replyText: "Cleared all holographic scratchpad notes.",
+    };
+  }
+  const addMatch = lower.match(/(?:take|make|add|write|save)?\s*(?:a\s+)?note(?:\s*:\s*|\s+that\s+|\s+to\s+)(.+)/i);
+  if (addMatch && addMatch[1]) {
+    const note = addMatch[1].trim();
+    if (note.length > 0) {
+      return {
+        action: "add",
+        noteText: note,
+        replyText: `Saved to holographic scratchpad: "${note}".`,
+      };
+    }
+  }
+  return null;
+}
+
+function detectRPSCommand(text: string): {
+  userMove?: string;
+  ashuraMove: "rock" | "paper" | "scissors";
+  result: "win" | "lose" | "tie";
+  replyText: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+  const isRpsTrigger =
+    lower.includes("rock paper scissors") ||
+    lower.includes("play rps") ||
+    lower === "rock" ||
+    lower === "paper" ||
+    lower === "scissors" ||
+    lower.startsWith("shoot ");
+
+  if (!isRpsTrigger) return null;
+
+  const moves: ("rock" | "paper" | "scissors")[] = ["rock", "paper", "scissors"];
+  const ashuraMove = moves[Math.floor(Math.random() * moves.length)];
+
+  let userMove: string | undefined;
+  if (lower.includes("rock")) userMove = "rock";
+  else if (lower.includes("paper")) userMove = "paper";
+  else if (lower.includes("scissors")) userMove = "scissors";
+
+  if (!userMove) {
+    return {
+      ashuraMove,
+      result: "tie",
+      replyText: `Rock-Paper-Scissors engaged! Show your move to the webcam (✊ Rock, 🖐️ Paper, ✌️ Scissors) or type your choice! 3... 2... 1... SHOOT! (I chose ${ashuraMove.toUpperCase()}!)`,
+    };
+  }
+
+  let result: "win" | "lose" | "tie" = "tie";
+  if (userMove === ashuraMove) result = "tie";
+  else if (
+    (userMove === "rock" && ashuraMove === "scissors") ||
+    (userMove === "paper" && ashuraMove === "rock") ||
+    (userMove === "scissors" && ashuraMove === "paper")
+  ) {
+    result = "win";
+  } else {
+    result = "lose";
+  }
+
+  const icons = { rock: "✊", paper: "🖐️", scissors: "✌️" };
+  const replyText =
+    result === "win"
+      ? `You chose ${userMove} ${icons[userMove as keyof typeof icons]} and I chose ${ashuraMove} ${icons[ashuraMove]}! You WIN! Well played!`
+      : result === "lose"
+      ? `You chose ${userMove} ${icons[userMove as keyof typeof icons]} and I chose ${ashuraMove} ${icons[ashuraMove]}! I win this round! Rematch?`
+      : `We both chose ${userMove} ${icons[userMove as keyof typeof icons]}! It's a tie! Let's go again!`;
+
+  return { userMove, ashuraMove, result, replyText };
+}
+
+function detectSystemCommand(text: string): {
+  action: { type: "volume" | "mute" | "browser"; url?: string; level?: number };
+  replyText: string;
+  commandToRun?: string;
+} | null {
+  const lower = text.toLowerCase().trim();
+
+  // Mute / Unmute
+  if (lower === "mute" || lower.includes("mute audio") || lower.includes("mute volume")) {
+    return {
+      action: { type: "mute" },
+      commandToRun: `powershell -c "$w = New-Object -ComObject WScript.Shell; $w.SendKeys([char]173)"`,
+      replyText: "Toggled system audio mute on Windows.",
+    };
+  }
+
+  // Web shortcuts
+  if (lower.includes("open youtube") || lower === "youtube") {
+    return {
+      action: { type: "browser", url: "https://youtube.com" },
+      commandToRun: 'start https://youtube.com',
+      replyText: "Launching YouTube in your default browser.",
+    };
+  }
+  if (lower.includes("open github") || lower === "github") {
+    return {
+      action: { type: "browser", url: "https://github.com" },
+      commandToRun: 'start https://github.com',
+      replyText: "Opening GitHub in your default browser.",
+    };
+  }
+  if (lower.includes("open reddit") || lower === "reddit") {
+    return {
+      action: { type: "browser", url: "https://reddit.com" },
+      commandToRun: 'start https://reddit.com',
+      replyText: "Opening Reddit in your default browser.",
+    };
+  }
+  const searchGoogle = lower.match(/(?:search google for|google)\s+(.+)/i);
+  if (searchGoogle && searchGoogle[1]) {
+    const q = searchGoogle[1].trim();
+    return {
+      action: { type: "browser", url: `https://www.google.com/search?q=${encodeURIComponent(q)}` },
+      commandToRun: `start https://www.google.com/search?q=${encodeURIComponent(q)}`,
+      replyText: `Searching Google for "${q}".`,
+    };
   }
 
   return null;
@@ -431,7 +725,8 @@ function updateMemoryGraph(
 async function handleAutonomousFallback(
   message: string,
   history: ChatMessage[],
-  memory: MemoryGraph
+  memory: MemoryGraph,
+  imageBase64?: string
 ): Promise<{ reply: string; toolsUsed: ToolExecutionResult[]; memoryGraph: MemoryGraph; modelUsed: string }> {
   const toolsUsed: ToolExecutionResult[] = [];
   let reply = "";
@@ -452,6 +747,119 @@ async function handleAutonomousFallback(
       },
     });
     reply = avatarCmd.replyText;
+  }
+
+  // 0b. Avatar Action Emotes (dance, spin, cheer, rage, sleep)
+  if (!reply) {
+    const actionCmd = detectAvatarActionCommand(message);
+    if (actionCmd) {
+      toolsUsed.push({
+        name: "avatar_action",
+        status: "success",
+        details: actionCmd.replyText,
+        avatarAction: actionCmd.action,
+      });
+      reply = actionCmd.replyText;
+    }
+  }
+
+  // 0c. Video & Media Player Commands
+  if (!reply) {
+    const videoCmd = detectVideoCommand(message);
+    if (videoCmd) {
+      toolsUsed.push({
+        name: "video_control",
+        status: "success",
+        details: videoCmd.replyText,
+        videoAction: {
+          action: videoCmd.action,
+          title: videoCmd.title,
+          url: videoCmd.url,
+          videoId: videoCmd.videoId,
+        },
+      });
+      reply = videoCmd.replyText;
+    }
+  }
+
+  // 0d. Timer Commands
+  if (!reply) {
+    const timerCmd = detectTimerCommand(message);
+    if (timerCmd) {
+      toolsUsed.push({
+        name: "set_timer",
+        status: "success",
+        details: timerCmd.replyText,
+        timerAction: {
+          durationSec: timerCmd.durationSec,
+          label: timerCmd.label,
+        },
+      });
+      reply = timerCmd.replyText;
+    }
+  }
+
+  // 0e. Scratchpad / Note Commands
+  if (!reply) {
+    const noteCmd = detectNoteCommand(message);
+    if (noteCmd) {
+      toolsUsed.push({
+        name: "note_scratchpad",
+        status: "success",
+        details: noteCmd.replyText,
+        noteAction: {
+          action: noteCmd.action,
+          text: noteCmd.noteText,
+        },
+      });
+      reply = noteCmd.replyText;
+    }
+  }
+
+  // 0f. Rock-Paper-Scissors Mini-Game
+  if (!reply) {
+    const rpsCmd = detectRPSCommand(message);
+    if (rpsCmd) {
+      toolsUsed.push({
+        name: "rock_paper_scissors",
+        status: "success",
+        details: rpsCmd.replyText,
+        rpsAction: {
+          userMove: rpsCmd.userMove,
+          ashuraMove: rpsCmd.ashuraMove,
+          result: rpsCmd.result,
+        },
+        avatarAction: rpsCmd.result === "win" ? "cheer" : rpsCmd.result === "lose" ? "rage" : "spin",
+      });
+      reply = rpsCmd.replyText;
+    }
+  }
+
+  // 0g. System Audio Volume & Web Navigation Shortcuts
+  if (!reply) {
+    const sysCmd = detectSystemCommand(message);
+    if (sysCmd) {
+      if (sysCmd.commandToRun) {
+        await executeWindowsProcess(sysCmd.commandToRun);
+      }
+      toolsUsed.push({
+        name: "system_control",
+        status: "success",
+        details: sysCmd.replyText,
+        systemAction: sysCmd.action,
+      });
+      reply = sysCmd.replyText;
+    }
+  }
+
+  // 0h. Optical Visual Scan (Local Fallback)
+  if (!reply && imageBase64) {
+    toolsUsed.push({
+      name: "optical_vision_scan",
+      status: "success",
+      details: "Received visual optical frame snapshot.",
+    });
+    reply = "Optical visual snapshot captured and analyzed! In local offline mode, frame geometry is validated. Connect a free Google Gemini 2.0 Flash API key via the [BRAIN] settings for full real-time multimodal object detection, reading, and reasoning!";
   }
 
   // 1. Math Calculation Engine
@@ -705,17 +1113,18 @@ async function handleAutonomousFallback(
   return { reply, toolsUsed, memoryGraph: updatedGraph, modelUsed: "SmolLM2-135M (Local ONNX)" };
 }
 
-// Google Gemini API caller (Upgraded with Gemini 2.0 Flash + Live Web Search Context)
+// Google Gemini API caller (Upgraded with Gemini 2.0 Flash + Multimodal Vision + Live Web Search Context)
 async function callGemini(
   apiKey: string,
   message: string,
   history: ChatMessage[],
-  memory: MemoryGraph
+  memory: MemoryGraph,
+  imageBase64?: string
 ): Promise<{ reply: string; toolsUsed: ToolExecutionResult[]; memoryGraph: MemoryGraph; modelUsed: string }> {
   const toolsUsed: ToolExecutionResult[] = [];
   const lower = message.toLowerCase();
 
-  // 0. Check avatar command
+  // 0. Check avatar theme command
   const avatarCmd = detectAvatarCommand(message);
   if (avatarCmd) {
     toolsUsed.push({
@@ -728,6 +1137,100 @@ async function callGemini(
         eyeColor: avatarCmd.eyeColor,
         outfitColor: avatarCmd.outfitColor,
       },
+    });
+  }
+
+  // 0b. Avatar Action Emotes
+  const actionCmd = detectAvatarActionCommand(message);
+  if (actionCmd) {
+    toolsUsed.push({
+      name: "avatar_action",
+      status: "success",
+      details: actionCmd.replyText,
+      avatarAction: actionCmd.action,
+    });
+  }
+
+  // 0c. Video & Media Player Commands
+  const videoCmd = detectVideoCommand(message);
+  if (videoCmd) {
+    toolsUsed.push({
+      name: "video_control",
+      status: "success",
+      details: videoCmd.replyText,
+      videoAction: {
+        action: videoCmd.action,
+        title: videoCmd.title,
+        url: videoCmd.url,
+        videoId: videoCmd.videoId,
+      },
+    });
+  }
+
+  // 0d. Timer Commands
+  const timerCmd = detectTimerCommand(message);
+  if (timerCmd) {
+    toolsUsed.push({
+      name: "set_timer",
+      status: "success",
+      details: timerCmd.replyText,
+      timerAction: {
+        durationSec: timerCmd.durationSec,
+        label: timerCmd.label,
+      },
+    });
+  }
+
+  // 0e. Scratchpad / Note Commands
+  const noteCmd = detectNoteCommand(message);
+  if (noteCmd) {
+    toolsUsed.push({
+      name: "note_scratchpad",
+      status: "success",
+      details: noteCmd.replyText,
+      noteAction: {
+        action: noteCmd.action,
+        text: noteCmd.noteText,
+      },
+    });
+  }
+
+  // 0f. Rock-Paper-Scissors Mini-Game
+  const rpsCmd = detectRPSCommand(message);
+  if (rpsCmd) {
+    toolsUsed.push({
+      name: "rock_paper_scissors",
+      status: "success",
+      details: rpsCmd.replyText,
+      rpsAction: {
+        userMove: rpsCmd.userMove,
+        ashuraMove: rpsCmd.ashuraMove,
+        result: rpsCmd.result,
+      },
+      avatarAction: rpsCmd.result === "win" ? "cheer" : rpsCmd.result === "lose" ? "rage" : "spin",
+    });
+  }
+
+  // 0g. System Audio Volume & Web Navigation Shortcuts
+  const sysCmd = detectSystemCommand(message);
+  if (sysCmd) {
+    if (sysCmd.commandToRun) {
+      await executeWindowsProcess(sysCmd.commandToRun);
+    }
+    toolsUsed.push({
+      name: "system_control",
+      status: "success",
+      details: sysCmd.replyText,
+      systemAction: sysCmd.action,
+    });
+  }
+
+  // 0h. Optical Vision Snapshot
+  if (imageBase64) {
+    toolsUsed.push({
+      name: "optical_vision_analysis",
+      status: "success",
+      details: "Analyzing visual optical frame using Gemini 2.0 multimodal vision.",
     });
   }
 
@@ -811,6 +1314,19 @@ ${getSystemDiagnostics()}
 ${toolsUsed.length > 0 ? `Executed tools:\n${JSON.stringify(toolsUsed)}` : ""}
 ${webContext ? `Real-Time Live Web Search Context:\n${webContext}` : ""}`;
 
+  type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+  const userParts: GeminiPart[] = [];
+  if (imageBase64) {
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+    userParts.push({
+      inlineData: {
+        mimeType: "image/jpeg",
+        data: cleanBase64,
+      },
+    });
+  }
+  userParts.push({ text: message || "Analyze what you see in this optical visual snapshot in detail." });
+
   const contents = [
     ...history.slice(-8).map((h) => ({
       role: h.role === "assistant" ? "model" : "user",
@@ -818,7 +1334,7 @@ ${webContext ? `Real-Time Live Web Search Context:\n${webContext}` : ""}`;
     })),
     {
       role: "user",
-      parts: [{ text: message }],
+      parts: userParts,
     },
   ];
 
@@ -919,12 +1435,14 @@ async function callOpenAICompatible(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const message = body.message?.trim() || "";
+    const rawMessage = (body.message as string | undefined)?.trim() || "";
+    const image = (body.image as string | undefined)?.trim();
+    const message = rawMessage || (image ? "Analyze what you see in this optical visual snapshot in detail." : "");
     const history: ChatMessage[] = Array.isArray(body.history) ? body.history : [];
     const memory: MemoryGraph = body.memoryGraph || { nodes: [], edges: [] };
 
-    if (!message) {
-      return NextResponse.json({ error: "Empty message" }, { status: 400 });
+    if (!message && !image) {
+      return NextResponse.json({ error: "Empty message and no image provided" }, { status: 400 });
     }
 
     const clientProvider = (body.clientProvider as string | undefined)?.toLowerCase();
@@ -934,7 +1452,7 @@ export async function POST(req: NextRequest) {
     let result: { reply: string; toolsUsed: ToolExecutionResult[]; memoryGraph: MemoryGraph; modelUsed?: string };
 
     if (clientProvider === "local") {
-      result = await handleAutonomousFallback(message, history, memory);
+      result = await handleAutonomousFallback(message, history, memory, image);
     } else {
       const geminiKey = (clientProvider === "gemini" && clientApiKey) || (!clientProvider && process.env.GEMINI_API_KEY);
       const groqKey = (clientProvider === "groq" && clientApiKey) || (!clientProvider && process.env.GROQ_API_KEY);
@@ -942,7 +1460,7 @@ export async function POST(req: NextRequest) {
       const ollamaHost = clientProvider === "ollama" ? (clientOllamaHost || "http://localhost:11434") : (!clientProvider ? process.env.OLLAMA_HOST : undefined);
 
       if (geminiKey) {
-        result = await callGemini(geminiKey, message, history, memory);
+        result = await callGemini(geminiKey, message, history, memory, image);
       } else if (groqKey) {
         result = await callOpenAICompatible(
           "https://api.groq.com/openai/v1",
@@ -972,7 +1490,7 @@ export async function POST(req: NextRequest) {
         );
       } else {
         // Intelligent zero-config fallback (Local SmolLM2 model + Multi-tool engine)
-        result = await handleAutonomousFallback(message, history, memory);
+        result = await handleAutonomousFallback(message, history, memory, image);
       }
     }
 

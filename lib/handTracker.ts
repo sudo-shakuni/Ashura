@@ -8,6 +8,8 @@ export type HandGesture =
   | { type: "rotate"; dx: number; dy: number }
   | { type: "zoom"; delta: number };
 
+export type HandPose = "rock" | "paper" | "scissors" | "unknown";
+
 const PINCH_ON_THRESHOLD = 0.045; // normalized distance to engage pinch
 const PINCH_OFF_THRESHOLD = 0.065; // must open past this to release (hysteresis)
 
@@ -25,12 +27,22 @@ export class HandTracker {
   private landmarker: HandLandmarker | null = null;
   private video: HTMLVideoElement | null = null;
   private onGesture: ((gesture: HandGesture) => void) | null = null;
+  private onPose: ((pose: HandPose) => void) | null = null;
+  private lastPose: HandPose = "unknown";
   private rafId: number | null = null;
   private running = false;
 
   private hand0: HandPinchState = { pinched: false, lastX: null, lastY: null };
   private hand1: HandPinchState = { pinched: false, lastX: null, lastY: null };
   private lastTwoHandDistance: number | null = null;
+
+  setPoseListener(listener: ((pose: HandPose) => void) | null) {
+    this.onPose = listener;
+  }
+
+  getLastPose(): HandPose {
+    return this.lastPose;
+  }
 
   async start(videoEl: HTMLVideoElement, onGesture: (gesture: HandGesture) => void) {
     this.video = videoEl;
@@ -154,6 +166,34 @@ export class HandTracker {
       this.releaseHandDrag(this.hand0);
       this.releaseHandDrag(this.hand1);
     }
+
+    if (hands.length > 0) {
+      const pose = this.classifyPose(hands[0]);
+      if (pose !== this.lastPose) {
+        this.lastPose = pose;
+        this.onPose?.(pose);
+      }
+    }
+  }
+
+  private classifyPose(lm: { x: number; y: number }[]): HandPose {
+    const wrist = lm[0];
+    const isExtended = (tipIdx: number, pipIdx: number) => {
+      const tipDist = distance(lm[tipIdx].x, lm[tipIdx].y, wrist.x, wrist.y);
+      const pipDist = distance(lm[pipIdx].x, lm[pipIdx].y, wrist.x, wrist.y);
+      return tipDist > pipDist * 1.15;
+    };
+
+    const indexExt = isExtended(8, 6);
+    const midExt = isExtended(12, 10);
+    const ringExt = isExtended(16, 14);
+    const pinkyExt = isExtended(20, 18);
+
+    if (!indexExt && !midExt && !ringExt && !pinkyExt) return "rock";
+    if (indexExt && midExt && !ringExt && !pinkyExt) return "scissors";
+    if (indexExt && midExt && ringExt && pinkyExt) return "paper";
+    if (indexExt && midExt && (ringExt || pinkyExt)) return "paper";
+    return "unknown";
   }
 
   private releaseHandDrag(hand: HandPinchState) {

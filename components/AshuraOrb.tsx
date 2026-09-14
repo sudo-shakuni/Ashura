@@ -1,9 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OrbScene, type OrbState, type ChibiTheme, CHIBI_THEMES } from "@/lib/orbScene";
+import { OrbScene, type OrbState, type ChibiTheme, type ChibiAction, CHIBI_THEMES } from "@/lib/orbScene";
 import { HandTracker } from "@/lib/handTracker";
 import { VoiceAssistant } from "@/lib/voiceAssistant";
+
+function playCyberBeep() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.38);
+  } catch {}
+}
 
 /**
  * ASHURA's orb interface — the visual layer.
@@ -94,6 +114,84 @@ export default function AshuraOrb() {
       localStorage.setItem("ashura_brain_ollama", brainOllamaHost);
     } catch {}
   }, [brainProvider, brainApiKey, brainOllamaHost]);
+
+  // Floating Holographic Video Player Dock
+  const [videoPlayer, setVideoPlayer] = useState<{
+    open: boolean;
+    minimized: boolean;
+    url: string;
+    title: string;
+  }>({
+    open: false,
+    minimized: false,
+    url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
+    title: "Lofi Hip Hop Radio 24/7",
+  });
+
+  // Countdown Timer Widget
+  const [timerState, setTimerState] = useState<{
+    active: boolean;
+    remainingSec: number;
+    totalSec: number;
+    label: string;
+  }>({
+    active: false,
+    remainingSec: 0,
+    totalSec: 0,
+    label: "Timer",
+  });
+
+  // Scratchpad Notes Drawer
+  const [notes, setNotes] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("ashura_notes");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return [
+      "Welcome to Ashura v2.0 Holographic Notes",
+      "Try saying 'Ashura, dance' or 'play lofi beats'",
+    ];
+  });
+  const [showNotesDrawer, setShowNotesDrawer] = useState(false);
+  const [newNoteText, setNewNoteText] = useState("");
+
+  // Optical Vision Scanning State
+  const [visionScanning, setVisionScanning] = useState(false);
+
+  // Rock Paper Scissors Game State
+  const [rpsModal, setRpsModal] = useState<{
+    open: boolean;
+    userMove?: string;
+    ashuraMove?: string;
+    result?: string;
+    countdown: number;
+  } | null>(null);
+
+  // Timer countdown ticker
+  useEffect(() => {
+    if (!timerState.active || timerState.remainingSec <= 0) return;
+    const id = setInterval(() => {
+      setTimerState((prev) => {
+        if (prev.remainingSec <= 1) {
+          playCyberBeep();
+          setActiveToolPill("⏱️ TIMER REACHED ZERO!");
+          setTimeout(() => setActiveToolPill(null), 4000);
+          return { ...prev, active: false, remainingSec: 0 };
+        }
+        return { ...prev, remainingSec: prev.remainingSec - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerState.active, timerState.remainingSec]);
+
+  // Sync notes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("ashura_notes", JSON.stringify(notes));
+    } catch {}
+  }, [notes]);
 
   // Intro video: plays on load over the orb, fades out on first interaction
   // so the scene underneath is revealed. introFading drives the CSS
@@ -247,6 +345,66 @@ export default function AshuraOrb() {
           setTimeout(() => setActiveToolPill(null), 3500);
         }
       },
+      onAvatarAction: (action) => {
+        sceneRef.current?.triggerAvatarAction(action as ChibiAction);
+        setActiveToolPill(`EMOTE: ${action.toUpperCase()}`);
+        setTimeout(() => setActiveToolPill(null), 3000);
+      },
+      onVideoAction: (v) => {
+        if (v.action === "close") {
+          setVideoPlayer((p) => ({ ...p, open: false }));
+        } else if (v.action === "pause") {
+          setVideoPlayer((p) => ({ ...p, minimized: true }));
+        } else {
+          setVideoPlayer({
+            open: true,
+            minimized: false,
+            url: v.url || "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
+            title: v.title || "Holographic Video Stream",
+          });
+        }
+        setActiveToolPill(`VIDEO: ${v.action.toUpperCase()}`);
+        setTimeout(() => setActiveToolPill(null), 3000);
+      },
+      onTimerAction: (t) => {
+        setTimerState({
+          active: true,
+          remainingSec: t.durationSec,
+          totalSec: t.durationSec,
+          label: t.label || "Countdown Timer",
+        });
+        setActiveToolPill(`TIMER: ${Math.round(t.durationSec)}s`);
+        setTimeout(() => setActiveToolPill(null), 3000);
+      },
+      onNoteAction: (n) => {
+        if (n.action === "add" && n.text) {
+          setNotes((prev) => [n.text!, ...prev]);
+        } else if (n.action === "clear") {
+          setNotes([]);
+        } else if (n.action === "list") {
+          setShowNotesDrawer(true);
+        }
+        setActiveToolPill(`SCRATCHPAD: ${n.action.toUpperCase()}`);
+        setTimeout(() => setActiveToolPill(null), 3000);
+      },
+      onRpsAction: (rps) => {
+        setRpsModal({
+          open: true,
+          countdown: 0,
+          userMove: rps.userMove,
+          ashuraMove: rps.ashuraMove,
+          result: rps.result,
+        });
+        if (rps.result === "win") {
+          sceneRef.current?.triggerAvatarAction("cheer");
+        } else if (rps.result === "lose") {
+          sceneRef.current?.triggerAvatarAction("rage");
+        } else {
+          sceneRef.current?.triggerAvatarAction("spin");
+        }
+        setActiveToolPill(`RPS: ${rps.result.toUpperCase()}`);
+        setTimeout(() => setActiveToolPill(null), 3000);
+      },
       getBrainConfig: () => brainConfigRef.current,
     });
     voiceRef.current = assistant;
@@ -297,6 +455,108 @@ export default function AshuraOrb() {
     setTextInput("");
     const assistant = getOrCreateAssistant();
     void assistant.askAgent(query);
+  };
+
+  const captureWebcamSnapshot = async (): Promise<string | null> => {
+    const video = videoRef.current;
+    if (!video || !video.srcObject || video.readyState < 2) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        });
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+          await new Promise((r) => setTimeout(r, 450));
+        }
+      } catch {
+        setVoiceError("Webcam access denied or unavailable for visual optical inspection.");
+        return null;
+      }
+    }
+    if (!video || video.readyState < 2) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  };
+
+  const captureScreenSnapshot = async (): Promise<string | null> => {
+    try {
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        setVoiceError("Screen capture is not supported in this browser context.");
+        return null;
+      }
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+      await new Promise((r) => setTimeout(r, 350));
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      stream.getTracks().forEach((t) => t.stop());
+      return dataUrl;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCameraVisionScan = async () => {
+    dismissIntro();
+    setVisionScanning(true);
+    setActiveToolPill("OPTICAL SCAN: CAPTURING CAMERA...");
+    const img = await captureWebcamSnapshot();
+    if (!img) {
+      setVisionScanning(false);
+      setActiveToolPill(null);
+      return;
+    }
+    setActiveToolPill("OPTICAL SCAN: ANALYZING SCENE...");
+    const assistant = getOrCreateAssistant();
+    await assistant.askAgent("Analyze what you see in this optical camera snapshot in detail, identify objects, and explain the scene.", img);
+    setVisionScanning(false);
+    setActiveToolPill(null);
+  };
+
+  const handleScreenVisionScan = async () => {
+    dismissIntro();
+    setVisionScanning(true);
+    setActiveToolPill("SCREEN SCAN: SELECT DISPLAY...");
+    const img = await captureScreenSnapshot();
+    if (!img) {
+      setVisionScanning(false);
+      setActiveToolPill(null);
+      return;
+    }
+    setActiveToolPill("SCREEN SCAN: ANALYZING DISPLAY...");
+    const assistant = getOrCreateAssistant();
+    await assistant.askAgent("Analyze what is currently shown on my screen. Explain the contents, debug any visible errors or code, or summarize the text.", img);
+    setVisionScanning(false);
+    setActiveToolPill(null);
+  };
+
+  const startRpsGame = (userChosenMove?: "rock" | "paper" | "scissors") => {
+    dismissIntro();
+    let detectedMove = userChosenMove;
+    if (!detectedMove && trackerRef.current) {
+      const pose = trackerRef.current.getLastPose();
+      if (pose !== "unknown") {
+        detectedMove = pose as "rock" | "paper" | "scissors";
+      }
+    }
+    const assistant = getOrCreateAssistant();
+    const prompt = detectedMove ? `shoot ${detectedMove}` : "play rock paper scissors";
+    void assistant.askAgent(prompt);
   };
 
   const applyState = (s: OrbState) => {
@@ -818,6 +1078,67 @@ export default function AshuraOrb() {
           {showChatInput ? "PROMPT ACTIVE [T]" : "CHAT PROMPT [T]"}
         </button>
 
+        <button
+          onClick={handleCameraVisionScan}
+          disabled={visionScanning}
+          className={`hud-button ${visionScanning ? "active" : ""}`}
+          title="Inspect and analyze live camera scene with Gemini Vision"
+        >
+          <span>👁️</span>
+          {visionScanning ? "SCANNING CAM…" : "SCAN CAMERA"}
+        </button>
+
+        <button
+          onClick={handleScreenVisionScan}
+          disabled={visionScanning}
+          className="hud-button"
+          title="Share and inspect your screen or code with Ashura"
+        >
+          <span>🖥️</span>
+          <span>SCREEN SCAN</span>
+        </button>
+
+        <button
+          onClick={() => setVideoPlayer((p) => ({ ...p, open: !p.open, minimized: false }))}
+          className={`hud-button ${videoPlayer.open ? "active" : ""}`}
+          title="Toggle floating cyberpunk video/music player"
+        >
+          <span>📺</span>
+          {videoPlayer.open ? "HIDE MEDIA" : "CYBER MEDIA"}
+        </button>
+
+        <button
+          onClick={() => setShowNotesDrawer((p) => !p)}
+          className={`hud-button ${showNotesDrawer ? "active" : ""}`}
+          title="Open holographic scratchpad notes"
+        >
+          <span>📝</span>
+          <span>NOTES ({notes.length})</span>
+        </button>
+
+        <button
+          onClick={() => startRpsGame()}
+          className="hud-button"
+          title="Play Rock Paper Scissors via webcam gestures or prompt"
+        >
+          <span>🎮</span>
+          <span>PLAY RPS</span>
+        </button>
+
+        <button
+          onClick={() => {
+            dismissIntro();
+            sceneRef.current?.triggerAvatarAction("dance");
+            setActiveToolPill("EMOTE: DANCE");
+            setTimeout(() => setActiveToolPill(null), 3000);
+          }}
+          className="hud-button"
+          title="Make Ashura dance to the music"
+        >
+          <span>💃</span>
+          <span>DANCE</span>
+        </button>
+
         {gesturesOn && (
           <button
             onClick={() => setShowCameraPreview((p) => !p)}
@@ -829,6 +1150,433 @@ export default function AshuraOrb() {
           </button>
         )}
       </div>
+
+      {/* FLOATING HOLOGRAPHIC VIDEO PLAYER DOCK */}
+      {videoPlayer.open && (
+        <div
+          className="hud-panel hud-chamfer"
+          style={{
+            position: "absolute",
+            bottom: showChatInput ? 190 : 80,
+            right: 20,
+            width: 380,
+            maxWidth: "calc(100vw - 40px)",
+            zIndex: 5,
+            padding: 10,
+            boxShadow: "0 12px 40px rgba(0, 0, 0, 0.85), 0 0 30px rgba(0, 240, 255, 0.25)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div className="corner-bracket corner-tl" />
+          <div className="corner-bracket corner-tr" />
+          <div className="corner-bracket corner-bl" />
+          <div className="corner-bracket corner-br" />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderBottom: "1px solid rgba(0, 240, 255, 0.2)",
+              paddingBottom: 6,
+            }}
+          >
+            <span
+              style={{
+                color: "#00f0ff",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.1em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 280,
+              }}
+            >
+              📺 HOLOGRAPHIC MEDIA: {videoPlayer.title}
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={() => setVideoPlayer((p) => ({ ...p, minimized: !p.minimized }))}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#38bdf8",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+                title={videoPlayer.minimized ? "Expand" : "Minimize"}
+              >
+                {videoPlayer.minimized ? "□" : "—"}
+              </button>
+              <button
+                onClick={() => setVideoPlayer((p) => ({ ...p, open: false }))}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(0, 240, 255, 0.6)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {!videoPlayer.minimized && (
+            <>
+              <div
+                style={{
+                  width: "100%",
+                  height: 210,
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  background: "#000",
+                }}
+              >
+                <iframe
+                  src={videoPlayer.url}
+                  title={videoPlayer.title}
+                  style={{ width: "100%", height: "100%", border: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  onClick={() =>
+                    setVideoPlayer({
+                      open: true,
+                      minimized: false,
+                      url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
+                      title: "Lofi Beats Radio 24/7",
+                    })
+                  }
+                  className="hud-button"
+                  style={{ padding: "3px 8px", fontSize: 10 }}
+                >
+                  ☕ Lofi Girl
+                </button>
+                <button
+                  onClick={() =>
+                    setVideoPlayer({
+                      open: true,
+                      minimized: false,
+                      url: "https://www.youtube-nocookie.com/embed/4xDzrJKXOOY?autoplay=1",
+                      title: "Cyberpunk Synthwave 24/7",
+                    })
+                  }
+                  className="hud-button"
+                  style={{ padding: "3px 8px", fontSize: 10 }}
+                >
+                  🌆 Synthwave
+                </button>
+                <button
+                  onClick={() =>
+                    setVideoPlayer({
+                      open: true,
+                      minimized: false,
+                      url: "https://www.youtube-nocookie.com/embed/rUxyKA_-grg?autoplay=1",
+                      title: "Cyber City Ambient",
+                    })
+                  }
+                  className="hud-button"
+                  style={{ padding: "3px 8px", fontSize: 10 }}
+                >
+                  🌌 Cyber Ambient
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* LIVE COUNTDOWN TIMER WIDGET */}
+      {(timerState.active || timerState.remainingSec > 0) && (
+        <div
+          className="hud-panel hud-chamfer"
+          style={{
+            position: "absolute",
+            top: 76,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 5,
+            padding: "8px 18px",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            boxShadow: "0 0 25px rgba(0, 240, 255, 0.4)",
+            background: "rgba(3, 10, 22, 0.9)",
+          }}
+        >
+          <div style={{ fontSize: 20 }}>⏱️</div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 9, color: "rgba(0, 240, 255, 0.6)", letterSpacing: "0.12em" }}>
+              {timerState.label.toUpperCase()}
+            </span>
+            <span
+              style={{
+                fontFamily: "'Orbitron', sans-serif",
+                fontSize: 18,
+                fontWeight: 700,
+                color: timerState.active ? "#00f0ff" : "#facc15",
+              }}
+            >
+              {Math.floor(timerState.remainingSec / 60).toString().padStart(2, "0")}:
+              {(timerState.remainingSec % 60).toString().padStart(2, "0")}
+            </span>
+          </div>
+          <button
+            onClick={() => setTimerState({ active: false, remainingSec: 0, totalSec: 0, label: "Timer" })}
+            className="hud-button"
+            style={{
+              padding: "4px 8px",
+              fontSize: 10,
+              color: "#ff6b6b",
+              borderColor: "rgba(255, 107, 107, 0.4)",
+            }}
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
+
+      {/* SCRATCHPAD NOTES DRAWER */}
+      {showNotesDrawer && (
+        <div
+          className="hud-panel hud-chamfer"
+          style={{
+            position: "absolute",
+            top: 80,
+            left: 200,
+            width: 320,
+            maxWidth: "calc(100vw - 40px)",
+            zIndex: 5,
+            padding: 14,
+            boxShadow: "0 12px 35px rgba(0, 0, 0, 0.8)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div className="corner-bracket corner-tl" />
+          <div className="corner-bracket corner-tr" />
+          <div className="corner-bracket corner-bl" />
+          <div className="corner-bracket corner-br" />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#00f0ff", letterSpacing: "0.12em" }}>
+              📝 HOLOGRAPHIC SCRATCHPAD
+            </span>
+            <button
+              onClick={() => setShowNotesDrawer(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(0, 240, 255, 0.6)",
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="text"
+              value={newNoteText}
+              onChange={(e) => setNewNoteText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newNoteText.trim()) {
+                  setNotes((prev) => [newNoteText.trim(), ...prev]);
+                  setNewNoteText("");
+                }
+              }}
+              placeholder="Type note and hit Enter..."
+              style={{
+                flex: 1,
+                background: "rgba(0, 240, 255, 0.05)",
+                border: "1px solid rgba(0, 240, 255, 0.3)",
+                color: "#fff",
+                fontSize: 11,
+                padding: "6px 8px",
+                borderRadius: 4,
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={() => {
+                if (newNoteText.trim()) {
+                  setNotes((prev) => [newNoteText.trim(), ...prev]);
+                  setNewNoteText("");
+                }
+              }}
+              className="hud-button active"
+              style={{ padding: "6px 10px", fontSize: 11 }}
+            >
+              +
+            </button>
+          </div>
+
+          <div style={{ maxHeight: 200, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+            {notes.length === 0 ? (
+              <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" }}>
+                No notes saved.
+              </span>
+            ) : (
+              notes.map((note, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: "rgba(0, 240, 255, 0.05)",
+                    border: "1px solid rgba(0, 240, 255, 0.15)",
+                    padding: "6px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    color: "#cbebff",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ wordBreak: "break-word" }}>{note}</span>
+                  <button
+                    onClick={() => setNotes((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "rgba(255, 107, 107, 0.7)",
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ROCK PAPER SCISSORS ARENA MODAL */}
+      {rpsModal?.open && (
+        <div
+          className="hud-panel hud-chamfer"
+          style={{
+            position: "absolute",
+            top: "45%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 8,
+            padding: "16px 24px",
+            minWidth: 320,
+            textAlign: "center",
+            boxShadow: "0 14px 45px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 240, 255, 0.4)",
+            background: "rgba(3, 10, 22, 0.95)",
+          }}
+        >
+          <div className="corner-bracket corner-tl" />
+          <div className="corner-bracket corner-tr" />
+          <div className="corner-bracket corner-bl" />
+          <div className="corner-bracket corner-br" />
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#00f0ff", letterSpacing: "0.15em", marginBottom: 10 }}>
+            🎮 ROCK · PAPER · SCISSORS AI ARENA
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", margin: "14px 0" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, color: "rgba(0, 240, 255, 0.6)" }}>YOU</span>
+              <span style={{ fontSize: 32 }}>
+                {rpsModal.userMove === "rock"
+                  ? "✊"
+                  : rpsModal.userMove === "paper"
+                  ? "🖐️"
+                  : rpsModal.userMove === "scissors"
+                  ? "✌️"
+                  : "❓"}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>
+                {rpsModal.userMove?.toUpperCase() || "SELECTING"}
+              </span>
+            </div>
+
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#00f0ff" }}>VS</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, color: "rgba(0, 240, 255, 0.6)" }}>ASHURA</span>
+              <span style={{ fontSize: 32 }}>
+                {rpsModal.ashuraMove === "rock"
+                  ? "✊"
+                  : rpsModal.ashuraMove === "paper"
+                  ? "🖐️"
+                  : rpsModal.ashuraMove === "scissors"
+                  ? "✌️"
+                  : "🤖"}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>
+                {rpsModal.ashuraMove?.toUpperCase() || "THINKING"}
+              </span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              margin: "10px 0",
+              color:
+                rpsModal.result === "win"
+                  ? "#34d399"
+                  : rpsModal.result === "lose"
+                  ? "#ff6b6b"
+                  : "#facc15",
+              textShadow: "0 0 10px currentColor",
+            }}
+          >
+            {rpsModal.result === "win"
+              ? "🏆 YOU WIN!"
+              : rpsModal.result === "lose"
+              ? "💥 ASHURA WINS!"
+              : "⚡ IT'S A DRAW!"}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+            <button
+              onClick={() => startRpsGame("rock")}
+              className="hud-button"
+              style={{ padding: "6px 12px", fontSize: 11 }}
+            >
+              ✊ ROCK
+            </button>
+            <button
+              onClick={() => startRpsGame("paper")}
+              className="hud-button"
+              style={{ padding: "6px 12px", fontSize: 11 }}
+            >
+              🖐️ PAPER
+            </button>
+            <button
+              onClick={() => startRpsGame("scissors")}
+              className="hud-button"
+              style={{ padding: "6px 12px", fontSize: 11 }}
+            >
+              ✌️ SCISSORS
+            </button>
+            <button
+              onClick={() => setRpsModal(null)}
+              className="hud-button"
+              style={{ padding: "6px 10px", fontSize: 11, color: "rgba(255, 255, 255, 0.5)" }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* OPTICAL CAMERA PIP FEED (Bottom Left) */}
       <div
@@ -1075,6 +1823,12 @@ export default function AshuraOrb() {
           {/* Quick command suggestion pills */}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingTop: 4 }}>
             {[
+              { label: "LOFI BEATS ☕", cmd: "play lofi beats" },
+              { label: "SYNTHWAVE 🌆", cmd: "play synthwave" },
+              { label: "DANCE 💃", cmd: "dance for me" },
+              { label: "RPS GAME ✊", cmd: "play rock paper scissors" },
+              { label: "5M TIMER ⏱️", cmd: "set a 5 minute timer" },
+              { label: "TAKE NOTE 📝", cmd: "add note review project progress" },
               { label: "SPACEX NEWS", cmd: "what is happening with SpaceX today?" },
               { label: "AI NEWS", cmd: "what is the latest news about AI?" },
               { label: "FIX AUDIO", cmd: "my audio is not working, how do I fix it?" },

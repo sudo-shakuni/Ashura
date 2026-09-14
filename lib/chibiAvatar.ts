@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { OrbState } from "./orbScene";
 
 export type ChibiTheme = "cyber_neon" | "anime_girl" | "mecha_robot" | "cat_neko" | "stealth_ninja";
+export type ChibiAction = "none" | "dance" | "spin" | "cheer" | "rage" | "sleep";
 
 export interface ChibiCustomization {
   theme?: ChibiTheme;
@@ -115,6 +116,9 @@ export class ChibiAvatar {
   private isBlinking = false;
   private blinkDuration = 0.14;
   private nextBlinkInterval = 3;
+  private currentAction: ChibiAction = "none";
+  private actionTimer = 0;
+  private actionDuration = 0;
 
   constructor() {
     this.initMaterials();
@@ -659,6 +663,20 @@ export class ChibiAvatar {
     this.triggerTransformationBurst(0x00f0ff);
   }
 
+  public triggerAction(action: ChibiAction, durationSec = 4) {
+    this.currentAction = action;
+    this.actionTimer = 0;
+    this.actionDuration = durationSec;
+    if (action === "spin" || action === "cheer" || action === "dance") {
+      const themeConfig = CHIBI_THEMES[this.currentTheme];
+      this.triggerTransformationBurst(themeConfig ? themeConfig.accentColor : 0x00f0ff);
+    }
+  }
+
+  public getAction(): ChibiAction {
+    return this.currentAction;
+  }
+
   public getTheme(): ChibiTheme {
     return this.currentTheme;
   }
@@ -716,8 +734,18 @@ export class ChibiAvatar {
       this.mouthMesh.scale.set(1, 0.35, 1); // Subtle cute smile
     }
 
-    // 5. State-Based Poses & Gestures
-    this.animateStatePoses(dt, t);
+    // 5. Action or State-Based Poses & Gestures
+    if (this.currentAction !== "none") {
+      this.actionTimer += dt;
+      if (this.actionTimer >= this.actionDuration) {
+        this.currentAction = "none";
+        this.rootGroup.rotation.y = 0;
+      } else {
+        this.animateActionPoses(dt, t, hoverY);
+      }
+    } else {
+      this.animateStatePoses(dt, t);
+    }
 
     // 6. Transformation burst update
     if (this.burstActive) {
@@ -737,6 +765,83 @@ export class ChibiAvatar {
       if (this.burstProgress >= 1) {
         this.burstActive = false;
         mat.opacity = 0;
+      }
+    }
+  }
+
+  private animateActionPoses(dt: number, t: number, hoverY: number) {
+    const lerpSpeed = dt * 8.0;
+    switch (this.currentAction) {
+      case "dance": {
+        // Rhythmic side-to-side torso groove
+        this.rootGroup.position.x = THREE.MathUtils.lerp(this.rootGroup.position.x, Math.sin(t * 7) * 0.2, lerpSpeed);
+        this.rootGroup.rotation.z = THREE.MathUtils.lerp(this.rootGroup.rotation.z, Math.sin(t * 7) * 0.15, lerpSpeed);
+
+        // Head bounce with rhythm
+        this.headGroup.rotation.z = -Math.sin(t * 7) * 0.18;
+        this.headGroup.rotation.x = Math.abs(Math.sin(t * 7)) * 0.14;
+
+        // Alternating arm pump
+        const armL = Math.sin(t * 7) * 0.7 + 1.2;
+        const armR = -Math.sin(t * 7) * 0.7 + 1.2;
+        this.leftArmGroup.rotation.x = THREE.MathUtils.lerp(this.leftArmGroup.rotation.x, armL, lerpSpeed);
+        this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, armR, lerpSpeed);
+        this.leftArmGroup.rotation.z = 0.55;
+        this.rightArmGroup.rotation.z = -0.55;
+
+        // Bouncing legs
+        this.leftLegGroup.rotation.x = Math.sin(t * 7) * 0.3;
+        this.rightLegGroup.rotation.x = -Math.sin(t * 7) * 0.3;
+        this.mouthMesh.scale.set(1.2, 0.7, 1);
+        break;
+      }
+      case "spin": {
+        const progress = Math.min(1, this.actionTimer / Math.max(0.1, this.actionDuration));
+        this.rootGroup.rotation.y = progress * Math.PI * 4;
+        this.rootGroup.position.y = hoverY + Math.sin(progress * Math.PI) * 0.5;
+
+        // Pirouette outstretched arms
+        this.leftArmGroup.rotation.z = THREE.MathUtils.lerp(this.leftArmGroup.rotation.z, 1.2, lerpSpeed);
+        this.rightArmGroup.rotation.z = THREE.MathUtils.lerp(this.rightArmGroup.rotation.z, -1.2, lerpSpeed);
+        this.leftArmGroup.rotation.x = THREE.MathUtils.lerp(this.leftArmGroup.rotation.x, 0, lerpSpeed);
+        this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, 0, lerpSpeed);
+        break;
+      }
+      case "cheer": {
+        const jumpY = Math.abs(Math.sin(t * 11)) * 0.38;
+        this.rootGroup.position.y = hoverY + jumpY;
+
+        // Both arms raised high in triumph
+        this.leftArmGroup.rotation.x = THREE.MathUtils.lerp(this.leftArmGroup.rotation.x, 2.4, lerpSpeed);
+        this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, 2.4, lerpSpeed);
+        this.leftArmGroup.rotation.z = 0.5 + Math.sin(t * 11) * 0.15;
+        this.rightArmGroup.rotation.z = -0.5 - Math.sin(t * 11) * 0.15;
+
+        this.headGroup.rotation.x = -0.18;
+        this.mouthMesh.scale.set(1.3, 1.1, 1);
+        break;
+      }
+      case "rage": {
+        // High frequency vibration
+        this.rootGroup.position.x = (Math.random() - 0.5) * 0.08;
+        this.rootGroup.position.y = hoverY + (Math.random() - 0.5) * 0.08;
+
+        // Clenched combat arms
+        this.leftArmGroup.rotation.x = 1.4 + Math.sin(t * 22) * 0.1;
+        this.rightArmGroup.rotation.x = 1.4 + Math.cos(t * 22) * 0.1;
+        this.headGroup.rotation.x = 0.2;
+        this.mouthMesh.scale.set(1.4, 0.2, 1);
+        break;
+      }
+      case "sleep": {
+        this.rootGroup.position.y = hoverY - 0.15;
+        this.headGroup.rotation.x = THREE.MathUtils.lerp(this.headGroup.rotation.x, 0.35, lerpSpeed);
+        this.leftEyelid.rotation.x = 0;
+        this.rightEyelid.rotation.x = 0;
+        this.leftArmGroup.rotation.x = THREE.MathUtils.lerp(this.leftArmGroup.rotation.x, 0.1, lerpSpeed);
+        this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, 0.1, lerpSpeed);
+        this.mouthMesh.scale.set(0.7, 0.2, 1);
+        break;
       }
     }
   }

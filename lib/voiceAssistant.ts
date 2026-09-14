@@ -68,6 +68,31 @@ export interface ToolExecutionResult {
   status: "success" | "error";
   details?: string;
   avatarCustomization?: ChibiCustomization;
+  avatarAction?: "dance" | "spin" | "cheer" | "rage" | "sleep";
+  videoAction?: {
+    action: "play" | "pause" | "close";
+    title?: string;
+    url?: string;
+    videoId?: string;
+  };
+  timerAction?: {
+    durationSec: number;
+    label?: string;
+  };
+  noteAction?: {
+    action: "add" | "list" | "clear";
+    text?: string;
+  };
+  rpsAction?: {
+    userMove?: string;
+    ashuraMove: "rock" | "paper" | "scissors";
+    result: "win" | "lose" | "tie";
+  };
+  systemAction?: {
+    type: "volume" | "mute" | "browser";
+    url?: string;
+    level?: number;
+  };
 }
 
 export interface AgentResponseData {
@@ -90,6 +115,12 @@ export interface VoiceAssistantOptions {
   onMemoryGraphUpdate?: (graph: MemoryGraphData) => void;
   onAmplitude?: (amp: number) => void;
   onAvatarChange?: (customization: ChibiCustomization) => void;
+  onAvatarAction?: (action: "dance" | "spin" | "cheer" | "rage" | "sleep") => void;
+  onVideoAction?: (action: { action: "play" | "pause" | "close"; title?: string; url?: string; videoId?: string }) => void;
+  onTimerAction?: (action: { durationSec: number; label?: string }) => void;
+  onNoteAction?: (action: { action: "add" | "list" | "clear"; text?: string }) => void;
+  onRpsAction?: (action: { userMove?: string; ashuraMove: "rock" | "paper" | "scissors"; result: "win" | "lose" | "tie" }) => void;
+  onToolsExecuted?: (tools: ToolExecutionResult[]) => void;
   getBrainConfig?: () => BrainConfig;
 }
 
@@ -318,11 +349,11 @@ export class VoiceAssistant {
     }
   }
 
-  public async askAgent(input: string) {
-    await this.handleUserSpeech(input);
+  public async askAgent(input: string, image?: string) {
+    await this.handleUserSpeech(input, image);
   }
 
-  private async handleUserSpeech(transcript: string) {
+  private async handleUserSpeech(transcript: string, image?: string) {
     // Transition to processing mode so onend will not restart listening while fetching
     this.mode = "processing";
     this.options.onTranscript?.(transcript, true);
@@ -343,6 +374,7 @@ export class VoiceAssistant {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: transcript,
+          image,
           history: this.history,
           memoryGraph: this.currentMemory,
           clientProvider: brain?.provider,
@@ -363,7 +395,23 @@ export class VoiceAssistant {
           if (tool.avatarCustomization) {
             this.options.onAvatarChange?.(tool.avatarCustomization);
           }
+          if (tool.avatarAction) {
+            this.options.onAvatarAction?.(tool.avatarAction);
+          }
+          if (tool.videoAction) {
+            this.options.onVideoAction?.(tool.videoAction);
+          }
+          if (tool.timerAction) {
+            this.options.onTimerAction?.(tool.timerAction);
+          }
+          if (tool.noteAction) {
+            this.options.onNoteAction?.(tool.noteAction);
+          }
+          if (tool.rpsAction) {
+            this.options.onRpsAction?.(tool.rpsAction);
+          }
         }
+        this.options.onToolsExecuted?.(data.toolsUsed);
         this.options.onStateChange("TOOL_EXECUTION");
         const hasError = data.toolsUsed.some((t) => t.status === "error");
         this.options.onToolPulse?.(hasError ? "error" : "success");

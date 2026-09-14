@@ -4,9 +4,9 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { ChibiAvatar, type ChibiTheme, type ChibiCustomization, CHIBI_THEMES } from "./chibiAvatar";
+import { ChibiAvatar, type ChibiTheme, type ChibiCustomization, type ChibiAction, CHIBI_THEMES } from "./chibiAvatar";
 
-export { ChibiAvatar, CHIBI_THEMES, type ChibiTheme, type ChibiCustomization };
+export { ChibiAvatar, CHIBI_THEMES, type ChibiTheme, type ChibiCustomization, type ChibiAction };
 
 /**
  * Orb states. Drives the avatar particle system's assembly progress and a
@@ -837,6 +837,14 @@ export class OrbScene {
 
   getAvatarTheme(): ChibiTheme {
     return this.chibiAvatar?.getTheme() || "cyber_neon";
+  }
+
+  triggerAvatarAction(action: ChibiAction, durationSec = 4) {
+    this.chibiAvatar?.triggerAction(action, durationSec);
+  }
+
+  getAvatarAction(): ChibiAction {
+    return this.chibiAvatar?.getAction() || "none";
   }
 
   setRotationDelta(dx: number, dy: number) {

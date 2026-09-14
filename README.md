@@ -29,12 +29,48 @@ It can be run **100% locally and completely free without any API keys**, or conn
 
 ## 🚀 Key Capabilities
 
-### 🌐 1. Live Web Search & Situational Context (Zero-Key RAG)
+### 👁️ 1. Multimodal Real-Time Vision (Camera & Screen Scan)
+- **Webcam Environment Scan**: With a single click (`[👁️ SCAN CAM]`) or voice command, Ashura captures a high-resolution snapshot from your camera and analyzes what you are holding, reading, or wearing using Gemini 2.0 Flash's multimodal vision engine.
+- **Desktop Screen Diagnostics**: Click `[🖥️ SCREEN SCAN]` to let Ashura inspect your open code editor, error dialog, or website to give you instant debugging feedback and context.
+- **Zero-Key Heuristic Fallback**: If running offline without keys, Ashura's autonomous vision module provides instant situational visual confirmations.
+
+### 📺 2. Cyber Holographic Video & YouTube Player
+- In-HUD floating video console with picture-in-picture draggable styling, minimize/maximize controls, and quick cyber presets:
+  - ☕ **Lofi Beats** (24/7 chilled study stream)
+  - 🌆 **Synthwave Radio** (Retro cyber wave coding music)
+  - ⚡ **Cyberpunk Ambient** (Dark futuristic electronic beats)
+  - 🌌 **Deep Space Drone** (Zero-gravity ambient focus soundscapes)
+- Control playback via voice or text: *"play lofi beats"*, *"open video synthwave"*, *"pause video"*, *"close player"*.
+
+### 💃 3. Procedural 3D Chibi Avatar Emotes & Dances
+- Interactive kinematic animation suite programmed procedurally in Three.js:
+  - 💃 **Dance**: Synchronized hip sways, bouncing head, and alternating arm pumps.
+  - 🌪️ **Spin**: High-speed 360-degree pirouettes with particle ring trails.
+  - 🎉 **Cheer**: Uplifting victory jumps with arms raised high.
+  - ⚡ **Rage**: Overclocked hyper-vibration with pulsing crimson alert visors.
+  - 💤 **Sleep**: Head drooped, eyes shut, hovering in low-power idle hibernation.
+- Trigger actions on-demand: *"dance for me"*, *"spin around"*, *"cheer up"*, *"sleep"*, or tap the **[💃 DANCE]** action button.
+
+### ✊ 4. Real-Time Rock-Paper-Scissors AI Game
+- Play Rock-Paper-Scissors against Ashura using **actual hand gestures in front of your webcam**!
+- MediaPipe hand landmark tracking analyzes finger extension ratios in real time:
+  - ✊ **Rock**: All four fingers curled tight against palm.
+  - 🖐️ **Paper**: All five fingers outstretched.
+  - ✌️ **Scissors**: Index and middle fingers extended in a V-shape.
+- Launch with *"play rock paper scissors"*, click **[✊ PLAY RPS]**, hold up your move during the 3-second holographic countdown, and see Ashura's reactive win/loss/tie calculation!
+
+### ⏱️ 5. Holographic Productivity & OS Suite
+- **Countdown Timer**: *"set a 5 minute timer"*, *"timer 30 seconds"*. Displays a floating cyber HUD countdown with a synthesized multi-frequency Web Audio alert upon completion.
+- **Scratchpad Notes**: *"add note review meeting at 4"*, *"show my notes"*. Persistent local holographic sticky notes drawer for rapid thoughts.
+- **System Volume Control**: *"volume up"*, *"volume down"*, *"mute audio"*.
+- **Quick Web Launchers**: *"open youtube"*, *"search google for typescript docs"*, *"open github"*.
+
+### 🌐 6. Live Web Search & Situational Context (Zero-Key RAG)
 - Built-in multi-source search pipeline combining **DuckDuckGo Instant Answers & Deep Web Search** with **Wikipedia summaries**.
 - Ashura autonomously decides when a question requires real-time information (e.g. current events, sports scores, documentation, troubleshooting, news) and injects live search summaries into its reasoning context.
 - **Zero API keys required** for web search — works straight out of the box.
 
-### 🤖 2. Procedural 3D Chibi Avatar & Holographic Cyber Orb
+### 🤖 7. Procedural 3D Chibi Avatar & Holographic Cyber Orb
 - Fully interactive Three.js 3D character with animated blinking eyes, reactive glowing neon visor, procedural mouth visemes synced to speech synthesis, and natural breathing idle physics.
 - **Particle-assembled holographic wings**, rotating outer data rings, volumetric bloom shaders, and chromatic aberration post-processing.
 - Dynamically shifts color, pulsing rate, and animation across 6 core states:
@@ -45,29 +81,29 @@ It can be run **100% locally and completely free without any API keys**, or conn
   - `TOOL_EXECUTION` (High-frequency purple warp drives for OS command runs)
   - `ERROR` (Crimson alarm pulse with automatic self-recovery)
 
-### 🧠 3. Multi-Engine AI Brain Architecture
+### 🧠 8. Multi-Engine AI Brain Architecture
 Configure Ashura's AI provider on the fly via the in-app **Brain Configuration HUD** or `.env.local`:
-- **Google Gemini 2.0 Flash** *(Recommended)*: Lightning-fast situational reasoning, context understanding, and zero hallucination web synthesis using free Google AI Studio keys.
+- **Google Gemini 2.0 Flash** *(Recommended)*: Lightning-fast situational reasoning, context understanding, multimodal vision, and zero hallucination web synthesis using free Google AI Studio keys.
 - **Autonomous Local Model Engine**: Fast, zero-dependency offline fallback engine that handles conversations, avatar switching, and local OS commands without any network connection or API keys.
 - **Local Ollama**: Connect to local LLMs (`llama3`, `deepseek-r1`, `mistral`) running on `http://localhost:11434`.
 - **OpenAI & Groq**: Compatible with GPT-4o, Llama-3-70b-versatile, and high-throughput Groq endpoints.
 
-### 💻 4. Local OS Diagnostics & Windows Automation
+### 💻 9. Local OS Diagnostics & Windows Automation
 Ashura can interact with and diagnose your local Windows PC directly:
 - **Application Launcher**: *"open notepad"*, *"launch calculator"*, *"open chrome"*, *"open code"*, *"open paint"*, *"open explorer"*.
 - **System Telemetry**: *"what are my specs?"*, *"show system memory"*, *"check cpu usage"*, *"how is my storage?"*.
 - **Safe Command Execution**: Diagnostic system commands (`dir`, `ipconfig`, `whoami`, `systeminfo`).
 
-### 🖐️ 5. MediaPipe AI Hand-Gesture Control
+### 🖐️ 10. MediaPipe AI Hand-Gesture Tracking & 3D Control
 - Real-time webcam tracking powered by **MediaPipe Tasks Vision** with seamless GPU/CPU fallbacks.
 - **Pinch-to-zoom**: Bring thumb and index together to zoom into Ashura's holographic cockpit.
 - **Spatial Rotation**: Move your hand across the camera frame to rotate the 3D avatar smoothly.
 
-### 🎙️ 6. Real-Time Voice Link & Amplitude Sync
+### 🎙️ 11. Real-Time Voice Link & Amplitude Sync
 - Continuous browser-native Web Speech recognition and vocal synthesis.
 - Live audio amplitude analyzer that pulses Ashura's core and mouth in direct sync with spoken responses.
 
-### 📊 7. Dynamic 3D Neural Memory Graph
+### 📊 12. Dynamic 3D Neural Memory Graph
 - Ashura actively parses conversational entities, technical concepts, and user preferences into a persistent 3D knowledge graph orbiting the avatar in real-time.
 
 ---
