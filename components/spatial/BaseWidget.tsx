@@ -31,6 +31,7 @@ export function BaseWidget({ id, title, iconName, children }: BaseWidgetProps) {
   const removeWidget = useWidgetStore((state) => state.removeWidget);
   
   const dragControls = useDragControls();
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
   if (!widget) return null;
 
@@ -63,9 +64,12 @@ export function BaseWidget({ id, title, iconName, children }: BaseWidgetProps) {
         scale: 1,
         height: isMinimized ? 44 : widget.height 
       }}
-      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+      transition={{ type: "tween", duration: 0.14, ease: "easeOut" }}
       onDragEnd={(_, info) => {
-        updateWidgetPosition(id, widget.x + info.offset.x, widget.y + info.offset.y);
+        const nextX = clamp(Math.round(widget.x + info.offset.x), 8, window.innerWidth - widget.width - 8);
+        const currentHeight = isMinimized ? 44 : widget.height;
+        const nextY = clamp(Math.round(widget.y + info.offset.y), 8, window.innerHeight - currentHeight - 8);
+        updateWidgetPosition(id, nextX, nextY);
       }}
       onPointerDown={() => bringToFront(id)}
       style={{ 

@@ -22,9 +22,11 @@ export function AntigravityCanvas() {
     if (!ctx) return;
 
     let particles: Particle[] = [];
-    let animationFrameId: number;
+    let animationFrameId = 0;
+    let isAnimating = false;
     let width = window.innerWidth;
     let height = window.innerHeight;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
     
     // Mouse state
     const mouse = { x: -1000, y: -1000 };
@@ -32,8 +34,12 @@ export function AntigravityCanvas() {
     const init = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       particles = [];
       const numParticles = Math.min(80, Math.floor((width * height) / 18000));
@@ -126,17 +132,34 @@ export function AntigravityCanvas() {
       mouse.y = -1000;
     };
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (isAnimating) {
+          cancelAnimationFrame(animationFrameId);
+          isAnimating = false;
+        }
+        return;
+      }
+      if (!isAnimating) {
+        isAnimating = true;
+        animationFrameId = requestAnimationFrame(draw);
+      }
+    };
+
     window.addEventListener('resize', init);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseleave', handleMouseLeave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     init();
-    draw();
+    isAnimating = true;
+    animationFrameId = requestAnimationFrame(draw);
 
     return () => {
       window.removeEventListener('resize', init);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseleave', handleMouseLeave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
